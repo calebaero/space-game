@@ -38,6 +38,8 @@ func _ready() -> void:
 
 	if station_menu.has_signal("undock_requested"):
 		station_menu.connect("undock_requested", _on_station_menu_undock_requested)
+	if station_menu.has_signal("galaxy_map_requested"):
+		station_menu.connect("galaxy_map_requested", _on_station_menu_galaxy_map_requested)
 	if galaxy_map_screen.has_signal("close_requested"):
 		galaxy_map_screen.connect("close_requested", _on_galaxy_map_close_requested)
 	if UIManager.has_signal("wreck_recovery_requested"):
@@ -231,6 +233,9 @@ func _on_station_menu_undock_requested() -> void:
 	if not _is_station_menu_open:
 		return
 
+	if _is_map_open:
+		_on_galaxy_map_close_requested()
+
 	if station_menu.has_method("close_menu"):
 		station_menu.call("close_menu")
 	else:
@@ -248,6 +253,21 @@ func _on_station_menu_undock_requested() -> void:
 		_active_player_ship.set_controls_enabled(true)
 
 	_docked_station = null
+
+
+func _on_station_menu_galaxy_map_requested() -> void:
+	if not _is_station_menu_open:
+		return
+	if _is_map_open:
+		return
+
+	_is_map_open = true
+	station_menu.visible = false
+	get_tree().paused = true
+	if galaxy_map_screen.has_method("open_map"):
+		galaxy_map_screen.call("open_map", GameStateManager.current_sector_id)
+	else:
+		galaxy_map_screen.visible = true
 
 
 func _on_player_warp_gate_requested(destination_sector_id: StringName, _source_gate_id: StringName) -> void:
@@ -298,6 +318,12 @@ func _on_galaxy_map_close_requested() -> void:
 	_is_map_open = false
 	if galaxy_map_screen.visible:
 		galaxy_map_screen.visible = false
+
+	if _is_station_menu_open:
+		station_menu.visible = true
+		get_tree().paused = true
+		return
+
 	get_tree().paused = false
 
 	if _active_player_ship != null and is_instance_valid(_active_player_ship) and not _is_station_menu_open:

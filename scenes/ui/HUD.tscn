@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/HUD.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/MinimapPanel.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/ui/ScannerCooldownIndicator.gd" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/ui/CargoPanel.tscn" id="4"]
 
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1")
@@ -78,6 +79,17 @@ offset_top = 1040.0
 offset_right = 270.0
 offset_bottom = 1071.0
 text = "Speed: 0 px/s"
+
+[node name="InFlightCargoPanel" parent="Root" instance=ExtResource("4")]
+unique_name_in_owner = true
+offset_left = 22.0
+offset_top = 840.0
+offset_right = 360.0
+offset_bottom = 1030.0
+mouse_filter = 2
+simplified_mode = true
+show_station_values = false
+max_rows_when_simplified = 4
 
 [node name="BottomRightPanel" type="Panel" parent="Root"]
 offset_left = 1630.0

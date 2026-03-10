@@ -57,7 +57,11 @@ func _process(delta: float) -> void:
 
 
 func show_tooltip(text: String, position: Vector2) -> void:
-	tooltip_requested.emit(text, position)
+	var cleaned_text: String = text.strip_edges()
+	if cleaned_text.is_empty():
+		hide_tooltip()
+		return
+	tooltip_requested.emit(cleaned_text, position)
 
 
 func hide_tooltip() -> void:

@@ -116,8 +116,44 @@
 19. Recover cargo and confirm capacity limits are respected (partial recovery if hold is full).
 20. Die again before recovering previous wreck and confirm `Previous wreck destroyed` toast behavior.
 
+## Phase 06 Manual Checklist (Station Economy Loop)
+
+1. Start a new game, mine at least 5 `Common Ore`, then dock at `Anchor Station`.
+2. Confirm the station menu shows top tabs and station header with:
+   - station name
+   - economy type
+   - live credits in the top-right.
+3. Open `Market` tab and verify `Sell Cargo` lists each cargo item with quantity, per-unit price, and total.
+4. Sell one listed stack and confirm:
+   - cargo quantity drops
+   - credits increase
+   - success toast appears.
+5. Click `Sell All` and confirm remaining sellable cargo converts to credits.
+6. Re-enter with mixed cargo and click `Quick Sell All`; confirm mission/story items are not sold.
+7. In `Market` -> `Buy Goods`, buy commodities using `Buy 1`, `Buy 5`, `Buy 10`, and `Buy Max`; confirm stock/credits/cargo update each time.
+8. Fly to `Ferrite Belt Outpost`, dock, and compare market prices against Anchor Station for the same item; confirm visible price variation.
+9. At `Ferrite Belt Outpost`, verify limited services behavior:
+   - `Market` and `Repair` available
+   - `Refinery` and `Workshop` unavailable/disabled.
+10. Return to `Anchor Station` and open `Refinery` tab.
+11. Refine `Common Ore x5 -> Metal Plates x2`; confirm ore is consumed and plates are added.
+12. Verify recipe rows gray out/disable when inputs are missing.
+13. Open `Workshop` tab and verify `Warp Stabilizer Mk I` and `Long-Range Warp Drive` recipes are listed.
+14. Confirm missing requirements render as `REQUIREMENTS NOT MET` with clear red feedback.
+15. Open `Repair` tab with damaged hull and confirm:
+    - cost is `2 credits` per missing hull point
+    - full repair deducts credits and restores hull instantly.
+16. With full hull, confirm repair tab reports `Ship in good condition`.
+17. Hover market/refinery/workshop item labels and confirm tooltip panel:
+    - shows name and description
+    - includes trade info (base value / best sold at)
+    - follows mouse and remains on-screen.
+18. Verify station cargo review panel updates live after every sell, buy, refine, and craft attempt.
+19. In-flight, verify simplified cargo panel is visible and updates when cargo changes.
+20. While docked, open the `Galaxy Map` tab and press `Open Galaxy Map`; close map and confirm return to station menu with world still paused.
+
 ## Deferred Runtime Checks (Future Phases)
 - Full mission board logic and station service implementation.
-- Economy/refinery/workshop functionality beyond menu shell.
+- Upgrade/module purchasing and equipment compare flows.
 - Secondary weapon content, advanced weapon families, and boss-specific behavior patterns.
 - Persistent save/load implementation beyond stubs.

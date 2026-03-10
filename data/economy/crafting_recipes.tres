@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="RecipeCatalog" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/RecipeCatalog.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+recipes = [{"blueprint_required": false, "credits_cost": 500, "description": "Starter warp unlock component for reaching Galaxy 2 routes.", "id": "craft_warp_stabilizer_mk1", "name": "Warp Stabilizer Mk I", "outputs": [{"item_id": "warp_stabilizer_mk1", "quantity": 1}], "progression_flag": "crafted_warp_stabilizer_mk1", "station_service": "workshop", "story_requirements": [{"item_id": "relic_component", "quantity": 1}], "unlock_target": "galaxy_2", "inputs": [{"item_id": "metal_plates", "quantity": 5}, {"item_id": "capacitor_units", "quantity": 3}]}, {"blueprint_required": true, "credits_cost": 1500, "description": "Advanced long-range drive needed to access Galaxy 3 sectors.", "id": "craft_long_range_warp_drive", "name": "Long-Range Warp Drive", "outputs": [{"item_id": "long_range_warp_drive", "quantity": 1}], "progression_flag": "crafted_long_range_warp_drive", "station_service": "workshop", "story_requirements": [{"item_id": "alien_circuitry", "quantity": 1}], "unlock_target": "galaxy_3", "inputs": [{"item_id": "weapon_components", "quantity": 3}, {"item_id": "warp_components", "quantity": 2}]}]

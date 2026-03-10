@@ -1,6 +1,31 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/StationMenu.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/ui/CargoPanel.tscn" id="2"]
+
+[sub_resource type="StyleBoxFlat" id="1"]
+bg_color = Color(0.039216, 0.054902, 0.101961, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.2, 0.58, 0.95, 0.72)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="2"]
+bg_color = Color(0.07, 0.09, 0.15, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.22, 0.42, 0.72, 0.6)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="StationMenu" type="CanvasLayer"]
 visible = false
@@ -22,108 +47,366 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 0.78)
+color = Color(0.039216, 0.054902, 0.101961, 0.88)
 
-[node name="CenterContainer" type="CenterContainer" parent="Root"]
+[node name="MainPanel" type="Panel" parent="Root"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 120.0
+offset_top = 70.0
+offset_right = -120.0
+offset_bottom = -70.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_styles/panel = SubResource("1")
 
-[node name="Panel" type="Panel" parent="Root/CenterContainer"]
-custom_minimum_size = Vector2(980, 620)
-layout_mode = 2
-
-[node name="VBox" type="VBoxContainer" parent="Root/CenterContainer/Panel"]
+[node name="MainMargin" type="MarginContainer" parent="Root/MainPanel"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 28.0
-offset_top = 24.0
-offset_right = -28.0
-offset_bottom = -24.0
+offset_left = 18.0
+offset_top = 16.0
+offset_right = -18.0
+offset_bottom = -16.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 14
 
-[node name="Header" type="HBoxContainer" parent="Root/CenterContainer/Panel/VBox"]
+[node name="MainVBox" type="VBoxContainer" parent="Root/MainPanel/MainMargin"]
 layout_mode = 2
+theme_override_constants/separation = 10
 
-[node name="StationNameLabel" type="Label" parent="Root/CenterContainer/Panel/VBox/Header"]
+[node name="HeaderRow" type="HBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="StationNameLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/HeaderRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Station Name"
 
-[node name="EconomyLabel" type="Label" parent="Root/CenterContainer/Panel/VBox/Header"]
+[node name="EconomyLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/HeaderRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Economy: Frontier"
 
-[node name="TabsTitle" type="Label" parent="Root/CenterContainer/Panel/VBox"]
+[node name="CreditsLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/HeaderRow"]
+unique_name_in_owner = true
 layout_mode = 2
-text = "Station Tabs (Placeholder)"
+custom_minimum_size = Vector2(220, 0)
+text = "Credits: 200"
+horizontal_alignment = 2
 
-[node name="TabsGrid" type="GridContainer" parent="Root/CenterContainer/Panel/VBox"]
+[node name="TabsRow" type="HBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox"]
 layout_mode = 2
-columns = 4
-theme_override_constants/h_separation = 12
-theme_override_constants/v_separation = 10
+theme_override_constants/separation = 8
 
-[node name="MissionsTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+[node name="MissionsTabButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/TabsRow"]
+unique_name_in_owner = true
 layout_mode = 2
+toggle_mode = true
 text = "Missions"
 
-[node name="MarketTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+[node name="MarketTabButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/TabsRow"]
+unique_name_in_owner = true
 layout_mode = 2
+toggle_mode = true
 text = "Market"
 
-[node name="RefineryTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+[node name="RefineryTabButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/TabsRow"]
+unique_name_in_owner = true
 layout_mode = 2
+toggle_mode = true
 text = "Refinery"
 
-[node name="WorkshopTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+[node name="WorkshopTabButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/TabsRow"]
+unique_name_in_owner = true
 layout_mode = 2
+toggle_mode = true
 text = "Workshop"
 
-[node name="UpgradesTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+[node name="UpgradesTabButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/TabsRow"]
+unique_name_in_owner = true
 layout_mode = 2
+toggle_mode = true
 text = "Upgrades"
 
-[node name="RepairTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+[node name="RepairTabButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/TabsRow"]
+unique_name_in_owner = true
 layout_mode = 2
+toggle_mode = true
 text = "Repair"
 
-[node name="GalaxyMapTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+[node name="GalaxyMapTabButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/TabsRow"]
+unique_name_in_owner = true
 layout_mode = 2
+toggle_mode = true
 text = "Galaxy Map"
 
-[node name="UndockTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
-layout_mode = 2
-text = "Undock"
-
-[node name="CargoDivider" type="HSeparator" parent="Root/CenterContainer/Panel/VBox"]
-layout_mode = 2
-
-[node name="CargoHeader" type="Label" parent="Root/CenterContainer/Panel/VBox"]
-layout_mode = 2
-text = "Cargo Manifest"
-
-[node name="CargoScroll" type="ScrollContainer" parent="Root/CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 220)
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="CargoListVBox" type="VBoxContainer" parent="Root/CenterContainer/Panel/VBox/CargoScroll"]
+[node name="UndockTabButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/TabsRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+text = "Undock"
+horizontal_alignment = 2
+
+[node name="ContentPanel" type="Panel" parent="Root/MainPanel/MainMargin/MainVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("2")
+
+[node name="ContentMargin" type="MarginContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = 14.0
+offset_right = -14.0
+offset_bottom = -14.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ContentStack" type="Control" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MissionsPage" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MissionsPlaceholderLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MissionsPage"]
+layout_mode = 2
+text = "Mission board integration is coming in a later phase."
+autowrap_mode = 3
+
+[node name="MarketPage" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarketSplit" type="HSplitContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage"]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = 420
+
+[node name="SellPanel" type="Panel" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("2")
+
+[node name="SellMargin" type="MarginContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/SellPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="SellVBox" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/SellPanel/SellMargin"]
+layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="UndockButton" type="Button" parent="Root/CenterContainer/Panel/VBox"]
+[node name="SellTitleLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/SellPanel/SellMargin/SellVBox"]
+layout_mode = 2
+text = "Sell Cargo"
+
+[node name="SellButtonsRow" type="HBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/SellPanel/SellMargin/SellVBox"]
+layout_mode = 2
+
+[node name="SellAllButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/SellPanel/SellMargin/SellVBox/SellButtonsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Undock"
+text = "Sell All"
+
+[node name="QuickSellButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/SellPanel/SellMargin/SellVBox/SellButtonsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Quick Sell All"
+
+[node name="SellScroll" type="ScrollContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/SellPanel/SellMargin/SellVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SellRowsVBox" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/SellPanel/SellMargin/SellVBox/SellScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="BuyPanel" type="Panel" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("2")
+
+[node name="BuyMargin" type="MarginContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/BuyPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="BuyVBox" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/BuyPanel/BuyMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BuyTitleLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/BuyPanel/BuyMargin/BuyVBox"]
+layout_mode = 2
+text = "Buy Goods"
+
+[node name="BuyScroll" type="ScrollContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/BuyPanel/BuyMargin/BuyVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="BuyRowsVBox" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/MarketPage/MarketSplit/BuyPanel/BuyMargin/BuyVBox/BuyScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="RefineryPage" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="RefineryTitleLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/RefineryPage"]
+layout_mode = 2
+text = "Refinery"
+
+[node name="RefineryScroll" type="ScrollContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/RefineryPage"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RefineryRowsVBox" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/RefineryPage/RefineryScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="WorkshopPage" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="WorkshopTitleLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/WorkshopPage"]
+layout_mode = 2
+text = "Workshop"
+
+[node name="WorkshopScroll" type="ScrollContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/WorkshopPage"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="WorkshopRowsVBox" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/WorkshopPage/WorkshopScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="UpgradesPage" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="UpgradesPlaceholderLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/UpgradesPage"]
+layout_mode = 2
+text = "Upgrade purchasing is coming in a later phase."
+autowrap_mode = 3
+
+[node name="RepairPage" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="RepairTitleLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/RepairPage"]
+layout_mode = 2
+text = "Repair Service"
+
+[node name="HullStatusLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/RepairPage"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Hull: 100 / 100"
+
+[node name="RepairCostLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/RepairPage"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Cost: 0 credits"
+
+[node name="FullRepairButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/RepairPage"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Full Repair"
+
+[node name="RepairInfoLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/RepairPage"]
+unique_name_in_owner = true
+layout_mode = 2
+text = ""
+autowrap_mode = 3
+
+[node name="GalaxyMapPage" type="VBoxContainer" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="GalaxyMapDescriptionLabel" type="Label" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/GalaxyMapPage"]
+layout_mode = 2
+text = "Review discovered sectors and route connections from here."
+autowrap_mode = 3
+
+[node name="OpenGalaxyMapButton" type="Button" parent="Root/MainPanel/MainMargin/MainVBox/ContentPanel/ContentMargin/ContentStack/GalaxyMapPage"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Open Galaxy Map"
+
+[node name="StationCargoPanel" parent="Root/MainPanel/MainMargin/MainVBox" instance=ExtResource("2")]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 210)
+layout_mode = 2

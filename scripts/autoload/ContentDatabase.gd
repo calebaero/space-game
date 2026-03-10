@@ -8,8 +8,12 @@ const GALAXY_DATA_PATHS := [
 	"res://data/galaxies/galaxy_03_relic_reach.tres",
 ]
 const RESOURCE_CATALOG_PATH: String = "res://data/items/resources.tres"
+const ITEM_CATALOG_PATH: String = "res://data/items/items.tres"
 const WEAPON_CATALOG_PATH: String = "res://data/items/weapons.tres"
 const ENEMY_ARCHETYPES_PATH: String = "res://data/enemies/enemy_archetypes.tres"
+const MARKET_PROFILE_PATH: String = "res://data/economy/market_profiles.tres"
+const REFINING_RECIPES_PATH: String = "res://data/economy/refining_recipes.tres"
+const CRAFTING_RECIPES_PATH: String = "res://data/economy/crafting_recipes.tres"
 
 const SECTOR_DATA_PATHS := [
 	"res://data/sectors/sector_anchor_station.tres",
@@ -26,10 +30,14 @@ const SECTOR_DATA_PATHS := [
 var _galaxies: Dictionary = {}
 var _sectors: Dictionary = {}
 var _resources_by_id: Dictionary = {}
+var _items_by_id: Dictionary = {}
 var _weapons_by_id: Dictionary = {}
 var _enemy_archetypes_by_id: Dictionary = {}
 var _node_tiers_by_tier: Dictionary = {}
 var _hazard_types_by_id: Dictionary = {}
+var _market_profile: Dictionary = {}
+var _refining_recipes: Array[Dictionary] = []
+var _crafting_recipes: Array[Dictionary] = []
 var _is_loaded: bool = false
 
 
@@ -44,13 +52,20 @@ func load_content(force_reload: bool = false) -> void:
 	_galaxies.clear()
 	_sectors.clear()
 	_resources_by_id.clear()
+	_items_by_id.clear()
 	_weapons_by_id.clear()
 	_enemy_archetypes_by_id.clear()
 	_node_tiers_by_tier.clear()
 	_hazard_types_by_id.clear()
+	_market_profile.clear()
+	_refining_recipes.clear()
+	_crafting_recipes.clear()
 	_load_resource_catalog()
+	_load_item_catalog()
 	_load_weapon_catalog()
 	_load_enemy_archetypes()
+	_load_market_profile()
+	_load_recipe_catalogs()
 	_load_galaxies()
 	_load_sectors()
 	_is_loaded = true
@@ -114,12 +129,33 @@ func get_all_resource_definitions() -> Dictionary:
 	return _resources_by_id.duplicate(true)
 
 
+func get_all_item_definitions() -> Dictionary:
+	ensure_loaded()
+	var merged: Dictionary = _items_by_id.duplicate(true)
+	for key_variant in _resources_by_id.keys():
+		var key: String = String(key_variant)
+		if merged.has(key):
+			continue
+		merged[key] = (_resources_by_id[key] as Dictionary).duplicate(true)
+	return merged
+
+
 func get_resource_definition(resource_id: StringName) -> Dictionary:
 	ensure_loaded()
 	var key: String = String(resource_id)
 	if not _resources_by_id.has(key):
 		return {}
 	return (_resources_by_id[key] as Dictionary).duplicate(true)
+
+
+func get_item_definition(item_id: StringName) -> Dictionary:
+	ensure_loaded()
+	var key: String = String(item_id)
+	if _items_by_id.has(key):
+		return (_items_by_id[key] as Dictionary).duplicate(true)
+	if _resources_by_id.has(key):
+		return (_resources_by_id[key] as Dictionary).duplicate(true)
+	return {}
 
 
 func get_all_weapon_definitions() -> Dictionary:
@@ -168,6 +204,21 @@ func get_all_hazard_type_definitions() -> Dictionary:
 	return _hazard_types_by_id.duplicate(true)
 
 
+func get_market_profile_data() -> Dictionary:
+	ensure_loaded()
+	return _market_profile.duplicate(true)
+
+
+func get_refining_recipes() -> Array[Dictionary]:
+	ensure_loaded()
+	return _refining_recipes.duplicate(true)
+
+
+func get_crafting_recipes() -> Array[Dictionary]:
+	ensure_loaded()
+	return _crafting_recipes.duplicate(true)
+
+
 func _load_resource_catalog() -> void:
 	var catalog_resource: Resource = load(RESOURCE_CATALOG_PATH)
 	if catalog_resource == null:
@@ -204,6 +255,26 @@ func _load_resource_catalog() -> void:
 		if hazard_id.is_empty():
 			continue
 		_hazard_types_by_id[hazard_id] = hazard_entry
+
+
+func _load_item_catalog() -> void:
+	var catalog_resource: Resource = load(ITEM_CATALOG_PATH)
+	if catalog_resource == null:
+		push_warning("ContentDatabase failed to load item catalog at: %s" % ITEM_CATALOG_PATH)
+		return
+	if not (catalog_resource is ItemCatalog):
+		push_warning("Item catalog has wrong type at: %s" % ITEM_CATALOG_PATH)
+		return
+
+	var catalog: ItemCatalog = catalog_resource
+	for item_variant in catalog.items:
+		if item_variant is not Dictionary:
+			continue
+		var item_entry: Dictionary = (item_variant as Dictionary).duplicate(true)
+		var item_id: String = String(item_entry.get("id", ""))
+		if item_id.is_empty():
+			continue
+		_items_by_id[item_id] = item_entry
 
 
 func _load_weapon_catalog() -> void:
@@ -244,6 +315,49 @@ func _load_enemy_archetypes() -> void:
 		if archetype_id.is_empty():
 			continue
 		_enemy_archetypes_by_id[archetype_id] = archetype_entry
+
+
+func _load_market_profile() -> void:
+	var catalog_resource: Resource = load(MARKET_PROFILE_PATH)
+	if catalog_resource == null:
+		push_warning("ContentDatabase failed to load market profile at: %s" % MARKET_PROFILE_PATH)
+		return
+	if not (catalog_resource is EconomyCatalog):
+		push_warning("Market profile has wrong type at: %s" % MARKET_PROFILE_PATH)
+		return
+
+	var catalog: EconomyCatalog = catalog_resource
+	_market_profile = {
+		"station_type_modifiers": catalog.station_type_modifiers.duplicate(true),
+		"commodity_availability": catalog.commodity_availability.duplicate(true),
+		"station_price_variance_min": catalog.station_price_variance_min,
+		"station_price_variance_max": catalog.station_price_variance_max,
+		"commodity_stock_min": catalog.commodity_stock_min,
+		"commodity_stock_max": catalog.commodity_stock_max,
+	}
+
+
+func _load_recipe_catalogs() -> void:
+	_refining_recipes = _load_recipe_catalog(REFINING_RECIPES_PATH)
+	_crafting_recipes = _load_recipe_catalog(CRAFTING_RECIPES_PATH)
+
+
+func _load_recipe_catalog(path: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var catalog_resource: Resource = load(path)
+	if catalog_resource == null:
+		push_warning("ContentDatabase failed to load recipe catalog at: %s" % path)
+		return result
+	if not (catalog_resource is RecipeCatalog):
+		push_warning("Recipe catalog has wrong type at: %s" % path)
+		return result
+
+	var catalog: RecipeCatalog = catalog_resource
+	for recipe_variant in catalog.recipes:
+		if recipe_variant is not Dictionary:
+			continue
+		result.append((recipe_variant as Dictionary).duplicate(true))
+	return result
 
 
 func _load_galaxies() -> void:

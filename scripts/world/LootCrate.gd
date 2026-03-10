@@ -111,16 +111,31 @@ func _apply_contents() -> bool:
 				var added: int = GameStateManager.add_cargo(StringName(item_id), quantity)
 				if added > 0:
 					collected_anything = true
-					var resource_def: Dictionary = ContentDatabase.get_resource_definition(StringName(item_id))
-					var resource_name: String = String(resource_def.get("name", item_id))
+					var item_def: Dictionary = ContentDatabase.get_item_definition(StringName(item_id))
+					var resource_name: String = String(item_def.get("name", item_id))
 					UIManager.show_toast("+%d %s" % [added, resource_name], &"success")
 			"credits":
 				GameStateManager.credits += quantity
 				UIManager.show_toast("+%d Credits" % quantity, &"success")
 				collected_anything = true
-			"commodity", "material", "mission_item":
-				UIManager.show_toast("Collected %d x %s (stub)." % [quantity, item_id], &"info")
-				collected_anything = true
+			"commodity", "material":
+				var added_trade: int = GameStateManager.add_cargo(StringName(item_id), quantity)
+				if added_trade > 0:
+					var item_data: Dictionary = ContentDatabase.get_item_definition(StringName(item_id))
+					var item_name: String = String(item_data.get("name", item_id))
+					UIManager.show_toast("+%d %s" % [added_trade, item_name], &"success")
+					collected_anything = true
+			"mission_item":
+				var mission_item_def: Dictionary = ContentDatabase.get_item_definition(StringName(item_id))
+				if bool(mission_item_def.get("store_in_relic_inventory", false)):
+					GameStateManager.add_relic(StringName(item_id), quantity)
+					UIManager.show_toast("Recovered %s x%d" % [String(mission_item_def.get("name", item_id)), quantity], &"success")
+					collected_anything = true
+				else:
+					var added_mission: int = GameStateManager.add_cargo(StringName(item_id), quantity)
+					if added_mission > 0:
+						UIManager.show_toast("+%d %s" % [added_mission, String(mission_item_def.get("name", item_id))], &"success")
+						collected_anything = true
 			_:
 				continue
 
@@ -157,14 +172,13 @@ func _update_color_from_contents() -> void:
 	if contents.is_empty():
 		return
 	var first_entry: Dictionary = contents[0]
-	if String(first_entry.get("item_type", "")) != "resource":
-		return
-
 	var resource_id: StringName = StringName(String(first_entry.get("item_id", "")))
-	var resource_def: Dictionary = ContentDatabase.get_resource_definition(resource_id)
+	var resource_def: Dictionary = ContentDatabase.get_item_definition(resource_id)
+	if resource_def.is_empty():
+		resource_def = ContentDatabase.get_resource_definition(resource_id)
 	if resource_def.is_empty():
 		return
-	_base_color = resource_def.get("family_color", _base_color)
+	_base_color = resource_def.get("icon_color", resource_def.get("family_color", _base_color))
 
 
 func _draw() -> void:

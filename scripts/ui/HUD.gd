@@ -21,6 +21,7 @@ extends CanvasLayer
 @onready var damage_flash: ColorRect = %DamageFlash
 @onready var minimap_panel: Control = %MiniMapPanel
 @onready var scanner_cooldown_indicator: Control = %ScannerCooldownIndicator
+@onready var in_flight_cargo_panel: CargoPanel = %InFlightCargoPanel
 
 var _player_ship: CharacterBody2D = null
 var _hull_flash_timer: float = 0.0
@@ -43,6 +44,8 @@ func _ready() -> void:
 	lead_indicator_label.visible = false
 	incoming_warning_label.visible = false
 	damage_flash.color.a = 0.0
+	if in_flight_cargo_panel != null:
+		in_flight_cargo_panel.set_title("Cargo Hold")
 
 	if not UIManager.toast_state_changed.is_connected(_on_toast_state_changed):
 		UIManager.toast_state_changed.connect(_on_toast_state_changed)

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EconomyCatalog" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/EconomyCatalog.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+station_type_modifiers = {"frontier": {"gas": 1.15, "general_goods": 1.15}, "industrial": {"alloy": 1.2, "crystal": 0.9, "ore": 1.2}, "military": {"civilian_goods": 0.9, "salvage": 1.2, "weapon_parts": 1.2}, "research": {"alien_tech": 1.2, "crystal": 1.2, "ore": 0.9}}
+commodity_availability = {"frontier": ["food_packs", "medical_supplies", "machinery_parts"], "industrial": ["food_packs", "machinery_parts"], "military": ["machinery_parts", "medical_supplies"], "research": ["food_packs", "medical_supplies"]}
+station_price_variance_min = 0.9
+station_price_variance_max = 1.1
+commodity_stock_min = 8
+commodity_stock_max = 26

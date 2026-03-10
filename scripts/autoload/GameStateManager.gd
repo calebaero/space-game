@@ -58,6 +58,7 @@ var wreck_beacon_state: Dictionary = {}
 var current_hull: float = 100.0
 var current_shield: float = 50.0
 var discovered_sectors: Dictionary = {}
+var progression_flags: Dictionary = {}
 
 var _queued_new_game_sector_id: StringName = &""
 var _shield_recharge_delay_remaining: float = 0.0
@@ -105,6 +106,7 @@ func reset_runtime_state(starting_sector_id: StringName = &"anchor_station") -> 
 	_player_destroyed_emitted = false
 	discovered_sectors = {}
 	mark_sector_discovered(starting_sector_id)
+	progression_flags = {}
 	wreck_beacon_state = {
 		"active": false,
 		"sector_id": "",
@@ -251,8 +253,10 @@ func get_cargo_used() -> int:
 		if quantity <= 0:
 			continue
 		var resource_id: StringName = StringName(String(entry.get("resource_id", "")))
-		var resource_def: Dictionary = ContentDatabase.get_resource_definition(resource_id)
-		var cargo_size: int = int(resource_def.get("cargo_size", 1))
+		var item_def: Dictionary = ContentDatabase.get_item_definition(resource_id)
+		if item_def.is_empty():
+			item_def = ContentDatabase.get_resource_definition(resource_id)
+		var cargo_size: int = int(item_def.get("cargo_size", 1))
 		used += quantity * max(cargo_size, 1)
 	return used
 
@@ -268,6 +272,8 @@ func get_cargo_free() -> int:
 func has_cargo(resource_id: StringName, quantity: int) -> bool:
 	if quantity <= 0:
 		return true
+	if _is_relic_inventory_item(resource_id):
+		return get_relic_quantity(resource_id) >= quantity
 	return _find_cargo_entry_quantity(resource_id) >= quantity
 
 
@@ -275,7 +281,7 @@ func add_cargo(resource_id: StringName, quantity: int) -> int:
 	if quantity <= 0:
 		return 0
 
-	if resource_id == &"ancient_relics":
+	if _is_relic_inventory_item(resource_id):
 		add_relic(resource_id, quantity)
 		return quantity
 
@@ -321,6 +327,13 @@ func add_cargo(resource_id: StringName, quantity: int) -> int:
 
 func remove_cargo(resource_id: StringName, quantity: int) -> bool:
 	if quantity <= 0:
+		return true
+	if _is_relic_inventory_item(resource_id):
+		var relic_quantity: int = get_relic_quantity(resource_id)
+		if relic_quantity < quantity:
+			return false
+		_add_relic_quantity(resource_id, -quantity)
+		cargo_changed.emit()
 		return true
 
 	var key: String = String(resource_id)
@@ -407,12 +420,34 @@ func set_equipped_weapon(slot_name: StringName, weapon_id: StringName) -> void:
 func add_relic(relic_id: StringName, quantity: int) -> void:
 	if quantity <= 0:
 		return
-	var key: String = String(relic_id)
-	relic_inventory[key] = int(relic_inventory.get(key, 0)) + quantity
+	_add_relic_quantity(relic_id, quantity)
+	cargo_changed.emit()
 
 
 func get_relic_quantity(relic_id: StringName) -> int:
 	return int(relic_inventory.get(String(relic_id), 0))
+
+
+func repair_hull(amount: float) -> float:
+	if amount <= 0.0:
+		return 0.0
+	var max_hull: float = get_max_hull()
+	var before: float = current_hull
+	current_hull = minf(current_hull + amount, max_hull)
+	if current_hull != before:
+		hull_changed.emit(current_hull, max_hull)
+	return current_hull - before
+
+
+func set_progression_flag(flag_name: StringName, enabled: bool = true) -> void:
+	var key: String = String(flag_name)
+	if key.is_empty():
+		return
+	progression_flags[key] = enabled
+
+
+func has_progression_flag(flag_name: StringName) -> bool:
+	return bool(progression_flags.get(String(flag_name), false))
 
 
 func get_cargo_weight() -> float:
@@ -425,8 +460,10 @@ func get_cargo_weight() -> float:
 		if quantity <= 0:
 			continue
 		var resource_id: StringName = StringName(String(entry.get("resource_id", "")))
-		var resource_def: Dictionary = ContentDatabase.get_resource_definition(resource_id)
-		var cargo_size: float = float(resource_def.get("cargo_size", 1.0))
+		var item_def: Dictionary = ContentDatabase.get_item_definition(resource_id)
+		if item_def.is_empty():
+			item_def = ContentDatabase.get_resource_definition(resource_id)
+		var cargo_size: float = float(item_def.get("cargo_size", 1.0))
 		total_weight += float(quantity) * cargo_size
 	return total_weight
 
@@ -452,6 +489,26 @@ func _find_cargo_entry_quantity(resource_id: StringName) -> int:
 		if String(entry.get("resource_id", "")) == key:
 			return int(entry.get("quantity", 0))
 	return 0
+
+
+func _is_relic_inventory_item(item_id: StringName) -> bool:
+	var item_def: Dictionary = ContentDatabase.get_item_definition(item_id)
+	if item_def.is_empty():
+		return false
+	if bool(item_def.get("store_in_relic_inventory", false)):
+		return true
+	return String(item_def.get("category", "")) == "mission_item"
+
+
+func _add_relic_quantity(item_id: StringName, delta_quantity: int) -> void:
+	if delta_quantity == 0:
+		return
+	var key: String = String(item_id)
+	var next_value: int = int(relic_inventory.get(key, 0)) + delta_quantity
+	if next_value <= 0:
+		relic_inventory.erase(key)
+		return
+	relic_inventory[key] = next_value
 
 
 func _ensure_input_actions() -> void:

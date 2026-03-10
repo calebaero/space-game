@@ -1,5 +1,39 @@
 # Changelog — Space Explorer
 
+## Phase 06
+- Expanded station loop from placeholder shell to functional tabbed service UI:
+  - Added top tab actions for Missions, Market, Refinery, Workshop, Upgrades, Repair, Galaxy Map, and Undock.
+  - Added service gating per station definition (limited outposts now expose only configured tabs).
+  - Added persistent station header metadata (station name, economy type, live credits).
+- Added data-driven economy content resources:
+  - `data/items/items.tres` for raw, refined, commodity, craft, and story item definitions.
+  - `data/economy/market_profiles.tres` for station economy multipliers and commodity availability.
+  - `data/economy/refining_recipes.tres` and `data/economy/crafting_recipes.tres` for recipe-driven station actions.
+  - Added supporting resource scripts: `ItemCatalog`, `EconomyCatalog`, and `RecipeCatalog`.
+- Extended `ContentDatabase` to load and expose item definitions, market profiles, refining recipes, and crafting recipes.
+- Replaced `EconomyManager` stub with functional pricing and transactions:
+  - Deterministic station-seeded buy/sell variation.
+  - Economy-type multipliers (Industrial/Research/Frontier/Military).
+  - Station commodity stock generation and buy flow.
+  - Cargo sell and commodity buy transaction helpers.
+- Upgraded station market flow:
+  - Sell rows with per-item value, per-stack sale action, `Sell All`, and `Quick Sell All`.
+  - Buy rows with `Buy 1`, `Buy 5`, `Buy 10`, and `Buy Max`.
+- Implemented refinery and workshop loop:
+  - Five refining recipes with station-type restrictions.
+  - Workshop recipes for `Warp Stabilizer Mk I` and `Long-Range Warp Drive` with requirement validation.
+  - Missing-requirement state uses explicit red `REQUIREMENTS NOT MET` feedback.
+- Implemented repair service:
+  - Full-hull restore at `2 credits` per missing hull point.
+  - Proper no-op messaging when hull is already full.
+- Added reusable tooltip and cargo inventory UI:
+  - `TooltipPanel` now follows the mouse and clamps to screen bounds.
+  - New reusable `CargoPanel` supports station review (full mode) and HUD/in-flight simplified mode.
+- Updated gameplay integration:
+  - Station menu can open galaxy map overlay and correctly returns to docked paused state on close.
+  - Ferrite Belt station converted to dockable Industrial outpost with `market_sell + repair` limited services.
+- Updated loot handling so `commodity`, `material`, and `mission_item` crate content now resolves into inventory/relic storage instead of placeholder toasts.
+
 ## Phase 05
 - Added data-driven combat catalogs:
   - `data/items/weapons.tres` for player/enemy weapon definitions (including Pulse Laser baseline).
