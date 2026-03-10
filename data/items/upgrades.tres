@@ -1,0 +1,199 @@
+[gd_resource type="Resource" script_class="UpgradeCatalog" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/UpgradeCatalog.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+paths = [{
+"id": "hull_plating",
+"name": "Hull Plating",
+"stat_key": "hull",
+"tiers": [{
+"bonus_mode": "add",
+"bonus_value": 30.0,
+"cost_credits": 250,
+"cost_items": [{
+"item_id": "metal_plates",
+"quantity": 3
+}],
+"description": "Increase max hull by 30."
+}, {
+"bonus_mode": "add",
+"bonus_value": 60.0,
+"cost_credits": 800,
+"cost_items": [{
+"item_id": "metal_plates",
+"quantity": 6
+}],
+"description": "Increase max hull by 60."
+}, {
+"bonus_mode": "add",
+"bonus_value": 100.0,
+"cost_credits": 2000,
+"cost_items": [{
+"item_id": "weapon_components",
+"quantity": 2
+}],
+"description": "Increase max hull by 100."
+}]
+}, {
+"id": "shield_generator",
+"name": "Shield Generator",
+"stat_key": "shield",
+"tiers": [{
+"bonus_mode": "add",
+"bonus_value": 20.0,
+"cost_credits": 300,
+"cost_items": [{
+"item_id": "capacitor_units",
+"quantity": 3
+}],
+"description": "Increase max shield by 20."
+}, {
+"bonus_mode": "add",
+"bonus_value": 40.0,
+"cost_credits": 900,
+"cost_items": [{
+"item_id": "capacitor_units",
+"quantity": 5
+}],
+"description": "Increase max shield by 40."
+}, {
+"bonus_mode": "add",
+"bonus_value": 70.0,
+"cost_credits": 2200,
+"cost_items": [{
+"item_id": "warp_components",
+"quantity": 1
+}],
+"description": "Increase max shield by 70."
+}]
+}, {
+"id": "engine_thruster",
+"name": "Engine / Thruster",
+"stat_key": "thrust",
+"tiers": [{
+"bonus_mode": "mul",
+"bonus_value": 0.25,
+"cost_credits": 280,
+"cost_items": [{
+"item_id": "stabilized_fuel_cells",
+"quantity": 3
+}],
+"description": "Increase thrust by 25%."
+}, {
+"bonus_mode": "mul",
+"bonus_value": 0.5,
+"cost_credits": 850,
+"cost_items": [{
+"item_id": "stabilized_fuel_cells",
+"quantity": 5
+}],
+"description": "Increase thrust by 50%."
+}, {
+"bonus_mode": "mul",
+"bonus_value": 0.8,
+"cost_credits": 2100,
+"cost_items": [{
+"item_id": "weapon_components",
+"quantity": 2
+}],
+"description": "Increase thrust by 80%."
+}]
+}, {
+"id": "cargo_hold",
+"name": "Cargo Hold",
+"stat_key": "cargo_capacity",
+"tiers": [{
+"bonus_mode": "set",
+"bonus_value": 40.0,
+"cost_credits": 200,
+"cost_items": [{
+"item_id": "metal_plates",
+"quantity": 2
+}],
+"description": "Increase cargo capacity to 40."
+}, {
+"bonus_mode": "set",
+"bonus_value": 60.0,
+"cost_credits": 600,
+"cost_items": [{
+"item_id": "metal_plates",
+"quantity": 4
+}],
+"description": "Increase cargo capacity to 60."
+}, {
+"bonus_mode": "set",
+"bonus_value": 80.0,
+"cost_credits": 1500,
+"cost_items": [{
+"item_id": "rare_alloy",
+"quantity": 3
+}],
+"description": "Increase cargo capacity to 80."
+}]
+}, {
+"id": "scanner",
+"name": "Scanner",
+"stat_key": "scanner_range",
+"tiers": [{
+"bonus_mode": "mul",
+"bonus_value": 0.5,
+"cost_credits": 250,
+"cost_items": [{
+"item_id": "capacitor_units",
+"quantity": 2
+}],
+"description": "Increase scanner range by 50%."
+}, {
+"bonus_mode": "mul",
+"bonus_value": 1.0,
+"cost_credits": 750,
+"cost_items": [{
+"item_id": "capacitor_units",
+"quantity": 4
+}],
+"description": "Increase scanner range by 100%."
+}, {
+"bonus_mode": "mul",
+"bonus_value": 1.66,
+"cost_credits": 1800,
+"cost_items": [{
+"item_id": "alien_tech",
+"quantity": 2
+}],
+"description": "Increase scanner range by 166%."
+}]
+}, {
+"id": "mining_laser",
+"name": "Mining Laser",
+"stat_key": "mining_efficiency",
+"tiers": [{
+"bonus_mode": "mul",
+"bonus_value": 0.2,
+"cost_credits": 220,
+"cost_items": [{
+"item_id": "metal_plates",
+"quantity": 2
+}],
+"description": "Increase mining efficiency by 20%."
+}, {
+"bonus_mode": "mul",
+"bonus_value": 0.4,
+"cost_credits": 700,
+"cost_items": [{
+"item_id": "capacitor_units",
+"quantity": 3
+}],
+"description": "Increase mining efficiency by 40%."
+}, {
+"bonus_mode": "mul",
+"bonus_value": 0.6,
+"cost_credits": 1700,
+"cost_items": [{
+"item_id": "weapon_components",
+"quantity": 1
+}],
+"description": "Increase mining efficiency by 60%."
+}]
+}]

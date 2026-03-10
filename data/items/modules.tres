@@ -1,0 +1,109 @@
+[gd_resource type="Resource" script_class="ModuleCatalog" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/ModuleCatalog.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+modules = [{
+"cost_credits": 0,
+"cost_items": [],
+"description": "Reliable white-blue pulse emitter. Starter all-rounder.",
+"id": "pulse_laser",
+"mass": 3,
+"name": "Pulse Laser",
+"power_draw": 5,
+"slot": "primary_weapon",
+"starting_owned": true,
+"weapon_id": "pulse_laser"
+}, {
+"cost_credits": 400,
+"cost_items": [{
+"item_id": "metal_plates",
+"quantity": 4
+}],
+"description": "Heavy ballistic cannon with lower cadence and stronger impact.",
+"id": "kinetic_cannon",
+"mass": 6,
+"name": "Kinetic Cannon",
+"power_draw": 8,
+"slot": "primary_weapon",
+"weapon_id": "kinetic_cannon"
+}, {
+"cost_credits": 1200,
+"cost_items": [{
+"item_id": "weapon_components",
+"quantity": 3
+}],
+"description": "Long-range magnetic accelerator with high burst per shot.",
+"id": "railgun",
+"mass": 10,
+"name": "Railgun",
+"power_draw": 15,
+"slot": "primary_weapon",
+"weapon_id": "railgun"
+}, {
+"cost_credits": 600,
+"cost_items": [{
+"item_id": "stabilized_fuel_cells",
+"quantity": 4
+}],
+"description": "Homing micro-missile rack. 5-round clip with reload downtime.",
+"id": "missile_pod",
+"mass": 8,
+"name": "Missile Pod",
+"power_draw": 10,
+"slot": "secondary_weapon",
+"weapon_id": "missile_pod"
+}, {
+"cost_credits": 800,
+"cost_items": [{
+"item_id": "capacitor_units",
+"quantity": 5
+}],
+"description": "Disruptive pulse charge dealing light damage and temporary shield disable.",
+"id": "emp_charge",
+"mass": 5,
+"name": "EMP Charge",
+"power_draw": 12,
+"slot": "secondary_weapon",
+"weapon_id": "emp_charge"
+}, {
+"cost_credits": 350,
+"cost_items": [{
+"item_id": "capacitor_units",
+"quantity": 3
+}],
+"description": "Projected pull field draws nearby floating loot toward the ship.",
+"id": "tractor_beam",
+"mass": 4,
+"name": "Tractor Beam",
+"power_draw": 6,
+"slot": "utility_module",
+"utility_type": "tractor_beam"
+}, {
+"cost_credits": 500,
+"cost_items": [{
+"item_id": "metal_plates",
+"quantity": 5
+}],
+"description": "Deploys a support drone that restores hull integrity over time.",
+"id": "repair_drone",
+"mass": 5,
+"name": "Repair Drone",
+"power_draw": 8,
+"slot": "utility_module",
+"utility_type": "repair_drone"
+}, {
+"cost_credits": 700,
+"cost_items": [{
+"item_id": "capacitor_units",
+"quantity": 4
+}],
+"description": "Triggers an emergency shield surge. 30 second cooldown.",
+"id": "shield_burst",
+"mass": 3,
+"name": "Shield Burst",
+"power_draw": 10,
+"slot": "utility_module",
+"utility_type": "shield_burst"
+}]

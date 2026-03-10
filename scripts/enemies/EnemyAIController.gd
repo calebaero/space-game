@@ -181,6 +181,10 @@ func _run_chase_behavior(distance_to_player: float) -> void:
 	var throttle: float = 1.0
 	if distance_to_player < _preferred_range * 0.95:
 		throttle = 0.4
+	if _behavior == "sentinel":
+		throttle = 0.7 if distance_to_player > _preferred_range * 0.9 else 0.35
+	elif _behavior == "discipline":
+		throttle = 0.86 if distance_to_player > _preferred_range else 0.52
 	var chase_strafe: float = 0.0
 	if _behavior == "flanker" or _behavior == "interceptor":
 		var strafe_sign: float = 1.0 if int(Time.get_ticks_msec() / 800) % 2 == 0 else -1.0
@@ -205,6 +209,10 @@ func _run_attack_behavior(to_player: Vector2, distance_to_player: float) -> void
 		strafe = 0.12 * orbit_sign
 	elif _behavior == "swarm":
 		strafe = 0.68 * orbit_sign
+	elif _behavior == "discipline":
+		strafe = 0.2 * orbit_sign
+	elif _behavior == "sentinel":
+		strafe = 0.0
 
 	var desired_position: Vector2 = player_position
 	if distance_to_player > _preferred_range:
@@ -215,12 +223,21 @@ func _run_attack_behavior(to_player: Vector2, distance_to_player: float) -> void
 			orbit_basis = Vector2.RIGHT
 		var orbit_direction: Vector2 = orbit_basis.rotated(orbit_sign * 0.9)
 		desired_position = player_position + orbit_direction * _preferred_range
+	if _behavior == "sentinel":
+		var hold_direction: Vector2 = to_player.normalized()
+		if hold_direction.length_squared() <= 0.0001:
+			hold_direction = Vector2.RIGHT
+		desired_position = player_position - hold_direction * _preferred_range
 
 	var throttle: float = 0.72
 	if distance_to_player < _preferred_range * 0.75:
 		throttle = 0.48
 	elif distance_to_player > _preferred_range * 1.2:
 		throttle = 0.92
+	if _behavior == "sentinel":
+		throttle = 0.55 if distance_to_player > _preferred_range * 1.15 else 0.28
+	elif _behavior == "discipline":
+		throttle = 0.68 if distance_to_player > _preferred_range else 0.44
 
 	var can_fire: bool = distance_to_player <= _ship.get_weapon_range() * 1.05
 	_ship.set_ai_command(desired_position, throttle, strafe, can_fire, false, aim_target)

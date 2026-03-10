@@ -57,6 +57,10 @@ var _active_tab: StationTab = StationTab.MARKET
 
 var _tab_pages: Dictionary = {}
 var _tab_buttons: Dictionary = {}
+var _upgrades_initialized: bool = false
+var _upgrade_summary_label: Label = null
+var _upgrade_rows_vbox: VBoxContainer = null
+var _module_sections_vbox: VBoxContainer = null
 
 
 func _ready() -> void:
@@ -102,6 +106,7 @@ func _ready() -> void:
 	if not GameStateManager.hull_changed.is_connected(_on_hull_changed):
 		GameStateManager.hull_changed.connect(_on_hull_changed)
 
+	_build_upgrades_page()
 	_switch_tab(StationTab.MARKET, true)
 
 
@@ -232,6 +237,7 @@ func _refresh_all_tab_content() -> void:
 	_refresh_market_tab()
 	_refresh_refinery_tab()
 	_refresh_workshop_tab()
+	_refresh_upgrades_tab()
 	_refresh_repair_tab()
 	if station_cargo_panel != null:
 		station_cargo_panel.refresh_panel()
@@ -303,6 +309,335 @@ func _refresh_workshop_tab() -> void:
 		_create_recipe_row(workshop_rows_vbox, recipe, false)
 	if not shown_any:
 		_add_info_label(workshop_rows_vbox, "No workshop recipes configured.")
+
+
+func _build_upgrades_page() -> void:
+	if _upgrades_initialized:
+		return
+
+	for child in upgrades_page.get_children():
+		child.queue_free()
+
+	var root_vbox: VBoxContainer = VBoxContainer.new()
+	root_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root_vbox.add_theme_constant_override("separation", 8)
+	upgrades_page.add_child(root_vbox)
+
+	_upgrade_summary_label = Label.new()
+	_upgrade_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root_vbox.add_child(_upgrade_summary_label)
+
+	var upgrades_title: Label = Label.new()
+	upgrades_title.text = "Core Upgrades"
+	root_vbox.add_child(upgrades_title)
+
+	var upgrades_scroll: ScrollContainer = ScrollContainer.new()
+	upgrades_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root_vbox.add_child(upgrades_scroll)
+
+	_upgrade_rows_vbox = VBoxContainer.new()
+	_upgrade_rows_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_upgrade_rows_vbox.add_theme_constant_override("separation", 8)
+	upgrades_scroll.add_child(_upgrade_rows_vbox)
+
+	var modules_title: Label = Label.new()
+	modules_title.text = "Module Loadout"
+	root_vbox.add_child(modules_title)
+
+	var modules_scroll: ScrollContainer = ScrollContainer.new()
+	modules_scroll.custom_minimum_size = Vector2(0.0, 220.0)
+	modules_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root_vbox.add_child(modules_scroll)
+
+	_module_sections_vbox = VBoxContainer.new()
+	_module_sections_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_module_sections_vbox.add_theme_constant_override("separation", 10)
+	modules_scroll.add_child(_module_sections_vbox)
+
+	_upgrades_initialized = true
+
+
+func _refresh_upgrades_tab() -> void:
+	_build_upgrades_page()
+	if _upgrade_summary_label == null or _upgrade_rows_vbox == null or _module_sections_vbox == null:
+		return
+
+	_clear_container(_upgrade_rows_vbox)
+	_clear_container(_module_sections_vbox)
+
+	if not _has_service("upgrades"):
+		_upgrade_summary_label.text = "Upgrade and module services unavailable at this station."
+		_add_info_label(_upgrade_rows_vbox, "Dock at a station with upgrade facilities.")
+		return
+
+	var power_used: float = GameStateManager.get_power_usage()
+	var power_capacity: float = GameStateManager.get_power_capacity()
+	var mass_total: float = GameStateManager.get_total_mass()
+	var agility_multiplier: float = maxf(0.3, 1.0 - (mass_total * 0.01))
+	var agility_penalty_percent: int = int(round((1.0 - agility_multiplier) * 100.0))
+	_upgrade_summary_label.text = "Power: %.0f/%.0f used   |   Mass: %.1f   |   Agility: -%d%%" % [power_used, power_capacity, mass_total, agility_penalty_percent]
+
+	var upgrade_paths: Array[Dictionary] = []
+	for path_variant in ContentDatabase.get_all_upgrade_paths().values():
+		if path_variant is not Dictionary:
+			continue
+		upgrade_paths.append((path_variant as Dictionary).duplicate(true))
+	upgrade_paths.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return String(a.get("name", "")) < String(b.get("name", ""))
+	)
+	for path_data in upgrade_paths:
+		_create_upgrade_row(path_data)
+
+	_create_module_slot_section(&"primary_weapon", "Primary Weapons")
+	_create_module_slot_section(&"secondary_weapon", "Secondary Weapons")
+	_create_module_slot_section(&"utility_module", "Utility Modules")
+	_create_module_slot_section(&"special_module", "Special Modules (Story Locked)")
+
+
+func _create_upgrade_row(path_data: Dictionary) -> void:
+	var path_id: StringName = StringName(String(path_data.get("id", "")))
+	if path_id == &"":
+		return
+
+	var panel: PanelContainer = PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.mouse_filter = Control.MOUSE_FILTER_PASS
+
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = Color(0.09, 0.12, 0.2, 0.8)
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.border_color = Color(0.24, 0.44, 0.78, 0.7)
+	style.corner_radius_top_left = 4
+	style.corner_radius_top_right = 4
+	style.corner_radius_bottom_right = 4
+	style.corner_radius_bottom_left = 4
+	panel.add_theme_stylebox_override("panel", style)
+	_upgrade_rows_vbox.add_child(panel)
+
+	var margin: MarginContainer = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margin)
+
+	var row: HBoxContainer = HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+	margin.add_child(row)
+
+	var left_vbox: VBoxContainer = VBoxContainer.new()
+	left_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_vbox.add_theme_constant_override("separation", 2)
+	row.add_child(left_vbox)
+
+	var current_tier: int = GameStateManager.get_upgrade_tier(path_id)
+	var tiers: Array = path_data.get("tiers", [])
+	var max_tier: int = tiers.size()
+	var title_label: Label = Label.new()
+	title_label.text = "%s  Mk %d/%d" % [String(path_data.get("name", path_id)), current_tier, max_tier]
+	left_vbox.add_child(title_label)
+
+	var preview_text: String = ""
+	var next_tier_data: Dictionary = GameStateManager.get_next_upgrade_tier_data(path_id)
+	if next_tier_data.is_empty():
+		preview_text = "Maximum tier reached."
+	else:
+		var stat_preview: Dictionary = GameStateManager.preview_upgrade_stat(path_id)
+		var stat_key: String = String(next_tier_data.get("stat_key", path_data.get("stat_key", "")))
+		preview_text = "%s: %s -> %s" % [
+			stat_key.capitalize().replace("_", " "),
+			_format_stat_number(float(stat_preview.get("before", 0.0))),
+			_format_stat_number(float(stat_preview.get("after", 0.0))),
+		]
+	var preview_label: Label = Label.new()
+	preview_label.text = preview_text
+	preview_label.modulate = Color(0.72, 0.82, 0.95, 0.95)
+	left_vbox.add_child(preview_label)
+
+	var cost_label: Label = Label.new()
+	if next_tier_data.is_empty():
+		cost_label.text = ""
+	else:
+		cost_label.text = "Cost: %s" % _format_cost_string(int(next_tier_data.get("cost_credits", 0)), Array(next_tier_data.get("cost_items", [])))
+	left_vbox.add_child(cost_label)
+
+	var purchase_button: Button = Button.new()
+	if next_tier_data.is_empty():
+		purchase_button.text = "MAX"
+		purchase_button.disabled = true
+	else:
+		var next_tier: int = int(next_tier_data.get("tier", current_tier + 1))
+		purchase_button.text = "Buy Mk %d" % next_tier
+		var check: Dictionary = GameStateManager.can_purchase_upgrade(path_id)
+		var can_purchase: bool = bool(check.get("can_purchase", false))
+		purchase_button.disabled = not can_purchase
+		if not can_purchase:
+			purchase_button.tooltip_text = String(check.get("reason", "Requirements not met."))
+		purchase_button.pressed.connect(func() -> void:
+			var result: Dictionary = GameStateManager.purchase_upgrade(path_id)
+			if not bool(result.get("success", false)):
+				UIManager.show_toast(String(result.get("message", "Upgrade purchase failed.")), &"warning")
+				return
+			var stat_name: String = String(result.get("stat_key", "Stat"))
+			var before_value: float = float(result.get("before_value", 0.0))
+			var after_value: float = float(result.get("after_value", 0.0))
+			UIManager.show_toast("%s (%s: %s -> %s)" % [
+				String(result.get("message", "Upgrade purchased.")),
+				stat_name.capitalize().replace("_", " "),
+				_format_stat_number(before_value),
+				_format_stat_number(after_value),
+			], &"success")
+			AudioManager.play_sfx(&"upgrade_purchase", Vector2.ZERO)
+			_refresh_all_tab_content()
+		)
+	row.add_child(purchase_button)
+
+
+func _create_module_slot_section(slot_name: StringName, title: String) -> void:
+	var section_panel: PanelContainer = PanelContainer.new()
+	section_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_module_sections_vbox.add_child(section_panel)
+
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.11, 0.19, 0.84)
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.border_color = Color(0.22, 0.4, 0.68, 0.65)
+	style.corner_radius_top_left = 4
+	style.corner_radius_top_right = 4
+	style.corner_radius_bottom_right = 4
+	style.corner_radius_bottom_left = 4
+	section_panel.add_theme_stylebox_override("panel", style)
+
+	var margin: MarginContainer = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	section_panel.add_child(margin)
+
+	var vbox: VBoxContainer = VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 6)
+	margin.add_child(vbox)
+
+	var equipped_module_id: StringName = GameStateManager.get_equipped_module_id(slot_name)
+	var equipped_module_data: Dictionary = ContentDatabase.get_module_definition(equipped_module_id)
+	var equipped_name: String = "None"
+	if equipped_module_data.is_empty():
+		if equipped_module_id != &"":
+			equipped_name = String(equipped_module_id)
+	else:
+		equipped_name = String(equipped_module_data.get("name", equipped_module_id))
+
+	var header_label: Label = Label.new()
+	header_label.text = "%s  |  Equipped: %s" % [title, equipped_name]
+	vbox.add_child(header_label)
+
+	var modules_for_slot: Array[Dictionary] = []
+	for module_variant in ContentDatabase.get_all_module_definitions().values():
+		if module_variant is not Dictionary:
+			continue
+		var module_data: Dictionary = module_variant
+		if String(module_data.get("slot", "")) != String(slot_name):
+			continue
+		modules_for_slot.append(module_data.duplicate(true))
+	modules_for_slot.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return String(a.get("name", "")) < String(b.get("name", ""))
+	)
+
+	if modules_for_slot.is_empty():
+		_add_info_label(vbox, "No modules available for this slot.")
+		return
+
+	for module_data in modules_for_slot:
+		var module_id: StringName = StringName(String(module_data.get("id", "")))
+		if module_id == &"":
+			continue
+
+		var row: HBoxContainer = HBoxContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_theme_constant_override("separation", 8)
+		vbox.add_child(row)
+
+		var info_vbox: VBoxContainer = VBoxContainer.new()
+		info_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info_vbox.add_theme_constant_override("separation", 2)
+		row.add_child(info_vbox)
+
+		var name_label: Label = Label.new()
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_label.text = "%s  (Pwr %.0f | Mass %.0f)" % [
+			String(module_data.get("name", module_id)),
+			float(module_data.get("power_draw", 0.0)),
+			float(module_data.get("mass", 0.0)),
+		]
+		info_vbox.add_child(name_label)
+
+		var cost_label: Label = Label.new()
+		cost_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cost_label.modulate = Color(0.72, 0.82, 0.95, 0.95)
+		var module_cost_text: String = _format_cost_string(int(module_data.get("cost_credits", 0)), Array(module_data.get("cost_items", [])))
+		if module_cost_text.is_empty():
+			cost_label.text = "Cost: Starting module"
+		else:
+			cost_label.text = "Cost: %s" % module_cost_text
+		info_vbox.add_child(cost_label)
+
+		var action_button: Button = Button.new()
+		action_button.custom_minimum_size = Vector2(120.0, 0.0)
+		var owned: bool = GameStateManager.is_module_owned(module_id)
+		var equipped: bool = equipped_module_id == module_id
+		if equipped:
+			action_button.text = "Equipped"
+			action_button.disabled = true
+		elif not owned:
+			action_button.text = "Buy"
+			var buy_check: Dictionary = GameStateManager.can_purchase_module(module_id)
+			action_button.disabled = not bool(buy_check.get("can_purchase", false))
+			if action_button.disabled:
+				action_button.tooltip_text = String(buy_check.get("reason", "Requirements not met."))
+			action_button.pressed.connect(func() -> void:
+				var buy_result: Dictionary = GameStateManager.purchase_module(module_id)
+				if not bool(buy_result.get("success", false)):
+					UIManager.show_toast(String(buy_result.get("message", "Purchase failed.")), &"warning")
+					return
+				UIManager.show_toast(String(buy_result.get("message", "Module purchased.")), &"success")
+				AudioManager.play_sfx(&"module_purchase", Vector2.ZERO)
+				if GameStateManager.get_equipped_module_id(slot_name) == &"":
+					var equip_result: Dictionary = GameStateManager.equip_module(slot_name, module_id)
+					if not bool(equip_result.get("success", false)):
+						UIManager.show_toast(String(equip_result.get("message", "Auto-equip failed.")), &"warning")
+				_refresh_all_tab_content()
+			)
+		else:
+			action_button.text = "Equip"
+			var equip_check: Dictionary = GameStateManager.can_equip_module(slot_name, module_id)
+			action_button.disabled = not bool(equip_check.get("can_equip", false))
+			if action_button.disabled:
+				action_button.tooltip_text = String(equip_check.get("reason", "Cannot equip."))
+			action_button.pressed.connect(func() -> void:
+				var equip_result: Dictionary = GameStateManager.equip_module(slot_name, module_id)
+				if not bool(equip_result.get("success", false)):
+					UIManager.show_toast(String(equip_result.get("message", "Equip failed.")), &"warning")
+					return
+				UIManager.show_toast("%s equipped." % String(module_data.get("name", module_id)), &"success")
+				AudioManager.play_sfx(&"module_equip", Vector2.ZERO)
+				_refresh_all_tab_content()
+			)
+		row.add_child(action_button)
+
+		var tooltip_text: String = _build_module_tooltip(slot_name, module_data)
+		name_label.tooltip_text = tooltip_text
+		cost_label.tooltip_text = tooltip_text
+		action_button.tooltip_text = tooltip_text if action_button.tooltip_text.is_empty() else action_button.tooltip_text
 
 
 func _refresh_repair_tab() -> void:
@@ -568,7 +903,7 @@ func _create_item_chip(item_id: StringName, quantity: int, is_input: bool) -> Bu
 func _can_execute_refinery_recipe(recipe: Dictionary) -> bool:
 	if not _has_required_inputs(recipe.get("inputs", []), false):
 		return false
-	return _has_output_capacity(recipe.get("outputs", []))
+	return _has_output_capacity(recipe.get("outputs", []), recipe.get("inputs", []), [])
 
 
 func _execute_refinery_recipe(recipe: Dictionary) -> bool:
@@ -616,7 +951,7 @@ func _check_workshop_recipe_requirements(recipe: Dictionary) -> Dictionary:
 		if not GameStateManager.has_progression_flag(blueprint_flag):
 			missing.append("Blueprint")
 
-	if not _has_output_capacity(recipe.get("outputs", [])):
+	if not _has_output_capacity(recipe.get("outputs", []), recipe.get("inputs", []), recipe.get("story_requirements", [])):
 		missing.append("Cargo space")
 
 	return {
@@ -648,7 +983,8 @@ func _execute_workshop_recipe(recipe: Dictionary) -> bool:
 		GameStateManager.set_progression_flag(progression_flag, true)
 	var unlock_target: String = String(recipe.get("unlock_target", ""))
 	if not unlock_target.is_empty():
-		UIManager.show_toast("%s crafted. Unlock handling continues in Phase 06." % String(recipe.get("name", "Item")), &"success")
+		GalaxyManager.apply_unlock_target(StringName(unlock_target))
+		UIManager.show_toast("%s crafted." % String(recipe.get("name", "Item")), &"success")
 	else:
 		UIManager.show_toast("Craft complete.", &"success")
 
@@ -728,8 +1064,40 @@ func _apply_outputs(outputs: Array) -> void:
 		GameStateManager.add_cargo(output_item_id, output_qty)
 
 
-func _has_output_capacity(outputs: Array) -> bool:
-	var needed_slots: int = 0
+func _has_output_capacity(outputs: Array, inputs: Array = [], story_requirements: Array = []) -> bool:
+	var current_used: int = GameStateManager.get_cargo_used()
+	var capacity: int = GameStateManager.get_cargo_capacity()
+	var slots_freed_by_inputs: int = 0
+	var slots_required_for_outputs: int = 0
+
+	for input_variant in inputs:
+		if input_variant is not Dictionary:
+			continue
+		var input_data: Dictionary = input_variant
+		var input_item_id: StringName = StringName(String(input_data.get("item_id", "")))
+		var input_qty: int = int(input_data.get("quantity", 0))
+		if input_qty <= 0:
+			continue
+		var input_item_def: Dictionary = ContentDatabase.get_item_definition(input_item_id)
+		if bool(input_item_def.get("store_in_relic_inventory", false)):
+			continue
+		var input_cargo_size: int = int(input_item_def.get("cargo_size", 1))
+		slots_freed_by_inputs += max(input_cargo_size, 1) * input_qty
+
+	for story_variant in story_requirements:
+		if story_variant is not Dictionary:
+			continue
+		var story_data: Dictionary = story_variant
+		var story_item_id: StringName = StringName(String(story_data.get("item_id", "")))
+		var story_qty: int = int(story_data.get("quantity", 0))
+		if story_qty <= 0:
+			continue
+		var story_item_def: Dictionary = ContentDatabase.get_item_definition(story_item_id)
+		if bool(story_item_def.get("store_in_relic_inventory", false)):
+			continue
+		var story_cargo_size: int = int(story_item_def.get("cargo_size", 1))
+		slots_freed_by_inputs += max(story_cargo_size, 1) * story_qty
+
 	for output_variant in outputs:
 		if output_variant is not Dictionary:
 			continue
@@ -742,8 +1110,10 @@ func _has_output_capacity(outputs: Array) -> bool:
 		if bool(item_def.get("store_in_relic_inventory", false)):
 			continue
 		var cargo_size: int = int(item_def.get("cargo_size", 1))
-		needed_slots += max(cargo_size, 1) * output_qty
-	return GameStateManager.get_cargo_free() >= needed_slots
+		slots_required_for_outputs += max(cargo_size, 1) * output_qty
+
+	var projected_used: int = max(current_used - slots_freed_by_inputs, 0) + slots_required_for_outputs
+	return projected_used <= capacity
 
 
 func _compute_max_buy(item_id: StringName, unit_price: int, available_quantity: int) -> int:
@@ -862,6 +1232,7 @@ func _on_cargo_changed() -> void:
 	_refresh_market_tab()
 	_refresh_refinery_tab()
 	_refresh_workshop_tab()
+	_refresh_upgrades_tab()
 	if station_cargo_panel != null:
 		station_cargo_panel.refresh_panel()
 
@@ -918,6 +1289,95 @@ func _build_item_tooltip(item_id: StringName) -> String:
 
 	lines.append("Module stat comparison: coming in later phase.")
 	return "\n".join(lines)
+
+
+func _build_module_tooltip(slot_name: StringName, module_data: Dictionary) -> String:
+	var lines: Array[String] = []
+	var module_name: String = String(module_data.get("name", "Module"))
+	var module_id: StringName = StringName(String(module_data.get("id", "")))
+	lines.append(module_name)
+	lines.append(String(module_data.get("description", "No description available.")))
+	lines.append("Power Draw: %.0f" % float(module_data.get("power_draw", 0.0)))
+	lines.append("Mass: %.0f" % float(module_data.get("mass", 0.0)))
+
+	var cost_text: String = _format_cost_string(int(module_data.get("cost_credits", 0)), Array(module_data.get("cost_items", [])))
+	if not cost_text.is_empty():
+		lines.append("Cost: %s" % cost_text)
+
+	var equipped_module_id: StringName = GameStateManager.get_equipped_module_id(slot_name)
+	var equipped_module_data: Dictionary = ContentDatabase.get_module_definition(equipped_module_id)
+	if equipped_module_id == &"":
+		lines.append("Current: None")
+	elif equipped_module_data.is_empty():
+		lines.append("Current: %s" % String(equipped_module_id))
+	else:
+		lines.append("Current: %s" % String(equipped_module_data.get("name", equipped_module_id)))
+
+	var candidate_weapon_data: Dictionary = _get_weapon_data_for_module(module_data)
+	if not candidate_weapon_data.is_empty():
+		var candidate_dps: float = float(candidate_weapon_data.get("damage", 0.0)) / maxf(float(candidate_weapon_data.get("fire_rate", 0.2)), 0.05)
+		lines.append("DPS: %.1f | Damage: %.0f | Range: %.0f" % [
+			candidate_dps,
+			float(candidate_weapon_data.get("damage", 0.0)),
+			float(candidate_weapon_data.get("range", 0.0)),
+		])
+		var equipped_weapon_data: Dictionary = _get_weapon_data_for_module(equipped_module_data)
+		if equipped_weapon_data.is_empty() and equipped_module_id != &"":
+			equipped_weapon_data = ContentDatabase.get_weapon_definition(equipped_module_id)
+		if not equipped_weapon_data.is_empty():
+			lines.append("Compare: %.0f -> %.0f dmg | %.0f -> %.0f range" % [
+				float(equipped_weapon_data.get("damage", 0.0)),
+				float(candidate_weapon_data.get("damage", 0.0)),
+				float(equipped_weapon_data.get("range", 0.0)),
+				float(candidate_weapon_data.get("range", 0.0)),
+			])
+
+	var equip_check: Dictionary = GameStateManager.can_equip_module(slot_name, module_id)
+	if bool(equip_check.get("can_equip", false)):
+		var projected_mass: float = GameStateManager.preview_loadout_mass(slot_name, module_id)
+		var projected_agility: float = GameStateManager.get_agility_multiplier_for_mass(projected_mass)
+		lines.append("Equip Preview: Power %.0f/%.0f" % [
+			float(equip_check.get("power_used", GameStateManager.get_power_usage())),
+			float(equip_check.get("power_capacity", GameStateManager.get_power_capacity())),
+		])
+		lines.append("Equip Preview: Mass %.1f (Agility -%d%%)" % [
+			projected_mass,
+			int(round((1.0 - projected_agility) * 100.0)),
+		])
+	else:
+		lines.append("Equip Blocked: %s" % String(equip_check.get("reason", "Requirements not met.")))
+	return "\n".join(lines)
+
+
+func _get_weapon_data_for_module(module_data: Dictionary) -> Dictionary:
+	if module_data.is_empty():
+		return {}
+	var weapon_id: StringName = StringName(String(module_data.get("weapon_id", module_data.get("id", ""))))
+	if weapon_id == &"":
+		return {}
+	return ContentDatabase.get_weapon_definition(weapon_id)
+
+
+func _format_cost_string(credit_cost: int, cost_items: Array) -> String:
+	var tokens: Array[String] = []
+	if credit_cost > 0:
+		tokens.append("%dcr" % credit_cost)
+	for cost_variant in cost_items:
+		if cost_variant is not Dictionary:
+			continue
+		var cost_data: Dictionary = cost_variant
+		var item_id: StringName = StringName(String(cost_data.get("item_id", "")))
+		var quantity: int = int(cost_data.get("quantity", 0))
+		if quantity <= 0:
+			continue
+		tokens.append("%s x%d" % [_get_item_name(item_id), quantity])
+	return ", ".join(tokens)
+
+
+func _format_stat_number(value: float) -> String:
+	if absf(value - round(value)) <= 0.01:
+		return str(int(round(value)))
+	return "%.2f" % value
 
 
 func _get_item_name(item_id: StringName) -> String:

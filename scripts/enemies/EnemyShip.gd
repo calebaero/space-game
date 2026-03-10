@@ -163,10 +163,19 @@ func get_targeting_priority() -> float:
 	return maxf(damageable.current_hull + damageable.current_shield, 0.0)
 
 
+func apply_emp_disable(duration: float) -> void:
+	damageable.disable_shield(duration)
+
+
 func apply_projectile_damage(amount: float, _projectile: Node = null) -> void:
 	if amount <= 0.0:
-		return
+		if _projectile == null:
+			return
 	var result: Dictionary = damageable.take_damage(amount)
+	if _projectile != null and _projectile.has_method("get_shield_disable_duration"):
+		var disable_duration: float = float(_projectile.call("get_shield_disable_duration"))
+		if disable_duration > 0.0:
+			damageable.disable_shield(disable_duration)
 	if float(result.get("shield_damage", 0.0)) > 0.0:
 		modulate = Color(0.72, 0.92, 1.0, 1.0)
 	elif float(result.get("hull_damage", 0.0)) > 0.0:
@@ -439,6 +448,22 @@ func _apply_faction_visuals() -> void:
 			Vector2(-4.0, 7.0),
 		])
 		accent_polygon.color = Color(0.82, 0.97, 1.0, 0.95)
+	elif faction == &"alien":
+		hull_polygon.polygon = PackedVector2Array([
+			Vector2(20.0, 0.0),
+			Vector2(8.0, -12.0),
+			Vector2(-8.0, -14.0),
+			Vector2(-18.0, 0.0),
+			Vector2(-8.0, 14.0),
+			Vector2(8.0, 12.0),
+		])
+		hull_polygon.color = Color(0.88, 0.72, 0.34, 1.0)
+		accent_polygon.polygon = PackedVector2Array([
+			Vector2(-7.0, -5.0),
+			Vector2(10.0, 0.0),
+			Vector2(-7.0, 5.0),
+		])
+		accent_polygon.color = Color(1.0, 0.9, 0.62, 0.95)
 	else:
 		hull_polygon.polygon = PackedVector2Array([
 			Vector2(20.0, 0.0),

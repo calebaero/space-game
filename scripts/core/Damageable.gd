@@ -15,6 +15,7 @@ var current_shield: float = 0.0
 
 var _recharge_delay_remaining: float = 0.0
 var _is_destroyed: bool = false
+var _shield_disable_remaining: float = 0.0
 
 
 func _ready() -> void:
@@ -33,6 +34,7 @@ func reset_to_full() -> void:
 	current_hull = maxf(max_hull, 1.0)
 	current_shield = maxf(max_shield, 0.0)
 	_recharge_delay_remaining = 0.0
+	_shield_disable_remaining = 0.0
 	_is_destroyed = false
 
 
@@ -81,12 +83,28 @@ func process_recharge(delta: float, multiplier: float = 1.0) -> void:
 		return
 	if multiplier <= 0.0:
 		return
+	if _shield_disable_remaining > 0.0:
+		_shield_disable_remaining = maxf(_shield_disable_remaining - delta, 0.0)
+		return
 
 	if _recharge_delay_remaining > 0.0:
 		_recharge_delay_remaining = maxf(_recharge_delay_remaining - delta, 0.0)
 		return
 
 	current_shield = minf(max_shield, current_shield + shield_recharge_rate * multiplier * delta)
+
+
+func disable_shield(duration: float) -> void:
+	if duration <= 0.0:
+		return
+	current_shield = 0.0
+	_shield_disable_remaining = maxf(_shield_disable_remaining, duration)
+	_recharge_delay_remaining = maxf(_recharge_delay_remaining, duration)
+	shield_depleted.emit()
+
+
+func get_shield_disable_remaining() -> float:
+	return _shield_disable_remaining
 
 
 func is_destroyed() -> bool:

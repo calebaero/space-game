@@ -36,6 +36,16 @@ const PROJECTILE_SCENE: PackedScene = preload("res://scenes/world/Projectile.tsc
 @export_group("Combat")
 @export var target_lock_range: float = 600.0
 
+@export_group("Utility")
+@export var tractor_range: float = 300.0
+@export var tractor_pull_speed: float = 420.0
+@export var shield_burst_cooldown: float = 30.0
+@export var repair_drone_orbit_radius: float = 34.0
+@export var repair_drone_orbit_speed: float = 2.8
+@export var repair_drone_heal_out_of_combat: float = 2.0
+@export var repair_drone_heal_in_combat: float = 0.5
+@export var combat_state_duration: float = 5.0
+
 @export_group("Camera")
 @export var camera_lead_scale: float = 0.3
 @export var camera_max_lead: float = 80.0
@@ -76,6 +86,13 @@ var _last_interaction_prompt_key: String = ""
 var _primary_fire_cooldown_remaining: float = 0.0
 var _secondary_fire_cooldown_remaining: float = 0.0
 var _secondary_toast_cooldown: float = 0.0
+var _secondary_reload_remaining: float = 0.0
+var _secondary_clip_remaining: int = 0
+var _secondary_weapon_cache: StringName = &""
+var _utility_cooldown_remaining: float = 0.0
+var _repair_drone_angle: float = 0.0
+var _combat_state_remaining: float = 0.0
+var _shield_disable_remaining: float = 0.0
 var _current_target: EnemyShip = null
 var _target_candidates: Array[EnemyShip] = []
 var _target_cycle_index: int = -1
@@ -86,6 +103,7 @@ var _incoming_warning_source_position: Vector2 = Vector2.ZERO
 var _shield_hit_flash_remaining: float = 0.0
 var _hull_hit_flash_remaining: float = 0.0
 var _death_emitted: bool = false
+var _repair_drone_visual: Polygon2D = null
 
 
 func _ready() -> void:
@@ -104,6 +122,7 @@ func _ready() -> void:
 
 	mining_beam.visible = false
 	mining_sparks.emitting = false
+	_ensure_repair_drone_visual()
 
 	if not GameStateManager.player_damage_applied.is_connected(_on_player_damage_applied):
 		GameStateManager.player_damage_applied.connect(_on_player_damage_applied)
@@ -115,11 +134,12 @@ func _physics_process(delta: float) -> void:
 	_update_active_hazards()
 	_update_debris_contact_timers(delta)
 	_update_combat_timers(delta)
+	if _combat_state_remaining > 0.0:
+		_combat_state_remaining = maxf(_combat_state_remaining - delta, 0.0)
+	if _shield_disable_remaining > 0.0:
+		_shield_disable_remaining = maxf(_shield_disable_remaining - delta, 0.0)
 
 	if controls_enabled:
-		if Input.is_action_just_pressed("utility_activate") and _is_utility_disabled():
-			UIManager.show_toast("Utility systems disabled in EMP zone.", &"warning")
-
 		_update_boost_state(delta)
 		_update_scanner_state(delta)
 		_update_rotation(delta)
@@ -127,6 +147,7 @@ func _physics_process(delta: float) -> void:
 		_apply_hazard_forces(delta)
 		_apply_soft_speed_limit(delta)
 		_update_weapon_state()
+		_update_utility_state(delta)
 		_update_targeting()
 		_update_mining(delta)
 
@@ -138,6 +159,7 @@ func _physics_process(delta: float) -> void:
 		_stop_mining(false)
 		_update_scanner_state(delta)
 		_clear_target_lock()
+		_update_utility_state(delta)
 
 	_update_shield_recharge(delta)
 	move_and_slide()
@@ -181,6 +203,8 @@ func set_controls_enabled(enabled: bool) -> void:
 		_last_interaction_prompt_key = ""
 		_stop_mining(false)
 		_clear_target_lock()
+		if _repair_drone_visual != null:
+			_repair_drone_visual.visible = false
 
 
 func add_trauma(amount: float) -> void:
@@ -199,8 +223,22 @@ func apply_external_damage(amount: float, source: String = "Hazard") -> void:
 
 func apply_projectile_damage(amount: float, _projectile: Node = null) -> void:
 	if amount <= 0.0:
-		return
+		if _projectile == null:
+			return
 	GameStateManager.apply_damage(amount)
+	_combat_state_remaining = combat_state_duration
+	if _projectile != null and _projectile.has_method("get_shield_disable_duration"):
+		var disable_duration: float = float(_projectile.call("get_shield_disable_duration"))
+		if disable_duration > 0.0:
+			apply_emp_disable(disable_duration)
+
+
+func apply_emp_disable(duration: float) -> void:
+	if duration <= 0.0:
+		return
+	_shield_disable_remaining = maxf(_shield_disable_remaining, duration)
+	GameStateManager.disable_player_shields(duration)
+	UIManager.show_toast("Shields disabled!", &"warning")
 
 
 func is_boost_active() -> bool:
@@ -308,10 +346,7 @@ func _update_rotation(delta: float) -> void:
 	var base_turn_speed: float = GameStateManager.get_effective_stat(&"turn_speed")
 	if base_turn_speed <= 0.0:
 		base_turn_speed = 3.0
-
-	var total_mass: float = GameStateManager.get_total_mass()
-	var mass_multiplier: float = maxf(0.25, 1.0 - (total_mass * 0.01))
-	var effective_turn_speed: float = base_turn_speed * mass_multiplier
+	var effective_turn_speed: float = base_turn_speed
 
 	var steering_input: float = clampf(angle_error / PI, -1.0, 1.0)
 	var manual_torque: float = Input.get_action_strength("rotate_right") - Input.get_action_strength("rotate_left")
@@ -395,13 +430,26 @@ func _update_combat_timers(delta: float) -> void:
 		_secondary_fire_cooldown_remaining = maxf(_secondary_fire_cooldown_remaining - delta, 0.0)
 	if _secondary_toast_cooldown > 0.0:
 		_secondary_toast_cooldown = maxf(_secondary_toast_cooldown - delta, 0.0)
+	if _secondary_reload_remaining > 0.0:
+		_secondary_reload_remaining = maxf(_secondary_reload_remaining - delta, 0.0)
+		if _secondary_reload_remaining <= 0.0:
+			_refill_secondary_clip()
+	if _utility_cooldown_remaining > 0.0:
+		_utility_cooldown_remaining = maxf(_utility_cooldown_remaining - delta, 0.0)
 
 
 func _update_weapon_state() -> void:
+	_sync_secondary_weapon_state()
+
 	if Input.is_action_pressed("fire_primary"):
 		_fire_weapon_from_slot(&"primary", false)
 
 	if Input.is_action_just_pressed("fire_secondary"):
+		if _secondary_reload_remaining > 0.0:
+			if _secondary_toast_cooldown <= 0.0:
+				UIManager.show_toast("Secondary weapon reloading.", &"info")
+				_secondary_toast_cooldown = 0.7
+			return
 		var fired_secondary: bool = _fire_weapon_from_slot(&"secondary", true)
 		if not fired_secondary and _secondary_toast_cooldown <= 0.0:
 			UIManager.show_toast("No secondary weapon equipped.", &"info")
@@ -412,6 +460,13 @@ func _fire_weapon_from_slot(slot_name: StringName, is_secondary: bool) -> bool:
 	if is_secondary:
 		if _secondary_fire_cooldown_remaining > 0.0:
 			return false
+		var secondary_weapon_id: StringName = GameStateManager.get_equipped_weapon_id(slot_name)
+		if secondary_weapon_id == &"missile_pod":
+			if _secondary_reload_remaining > 0.0:
+				return false
+			if _secondary_clip_remaining <= 0:
+				_start_secondary_reload()
+				return false
 	else:
 		if _primary_fire_cooldown_remaining > 0.0:
 			return false
@@ -427,9 +482,10 @@ func _fire_weapon_from_slot(slot_name: StringName, is_secondary: bool) -> bool:
 		return false
 
 	var forward: Vector2 = Vector2.RIGHT.rotated(rotation)
+	var weapon_id: StringName = GameStateManager.get_equipped_weapon_id(slot_name)
 	projectile.global_position = global_position + forward * 24.0
 	get_parent().add_child(projectile)
-	projectile.configure({
+	var payload_data: Dictionary = {
 		"damage": float(weapon_data.get("damage", 8.0)),
 		"speed": float(weapon_data.get("projectile_speed", 800.0)),
 		"range": float(weapon_data.get("range", 500.0)),
@@ -439,16 +495,135 @@ func _fire_weapon_from_slot(slot_name: StringName, is_secondary: bool) -> bool:
 		"direction": forward,
 		"color": weapon_data.get("color", Color(0.7, 0.9, 1.0, 1.0)),
 		"scale": float(weapon_data.get("scale", 1.0)),
-		"width": 2.5,
-	})
+		"width": float(weapon_data.get("width", 2.5)),
+		"aoe_radius": float(weapon_data.get("aoe_radius", 0.0)),
+		"shield_disable_duration": float(weapon_data.get("shield_disable_duration", 0.0)),
+	}
+	if bool(weapon_data.get("is_homing", false)) and _current_target != null and is_instance_valid(_current_target):
+		payload_data["homing_target"] = _current_target
+	projectile.configure(payload_data)
 
 	var fire_rate: float = float(weapon_data.get("fire_rate", 0.2))
 	if is_secondary:
 		_secondary_fire_cooldown_remaining = maxf(fire_rate, 0.05)
+		if weapon_id == &"missile_pod":
+			_secondary_clip_remaining = max(_secondary_clip_remaining - 1, 0)
+			if _secondary_clip_remaining <= 0:
+				_start_secondary_reload()
 	else:
 		_primary_fire_cooldown_remaining = maxf(fire_rate, 0.05)
 
+	_combat_state_remaining = combat_state_duration
 	return true
+
+
+func _sync_secondary_weapon_state() -> void:
+	var secondary_weapon_id: StringName = GameStateManager.get_equipped_weapon_id(&"secondary")
+	if secondary_weapon_id == _secondary_weapon_cache:
+		return
+	_secondary_weapon_cache = secondary_weapon_id
+	_secondary_reload_remaining = 0.0
+	_secondary_clip_remaining = 0
+	_refill_secondary_clip()
+
+
+func _refill_secondary_clip() -> void:
+	var secondary_data: Dictionary = GameStateManager.get_equipped_weapon_definition(&"secondary")
+	if secondary_data.is_empty():
+		_secondary_clip_remaining = 0
+		return
+	_secondary_clip_remaining = max(int(secondary_data.get("clip_size", 0)), 0)
+
+
+func _start_secondary_reload() -> void:
+	var secondary_data: Dictionary = GameStateManager.get_equipped_weapon_definition(&"secondary")
+	if secondary_data.is_empty():
+		return
+	_secondary_reload_remaining = maxf(float(secondary_data.get("reload_time", 0.0)), 0.0)
+	if _secondary_reload_remaining > 0.0:
+		UIManager.show_toast("Reloading %s..." % String(secondary_data.get("name", "Secondary")), &"info")
+
+
+func _update_utility_state(delta: float) -> void:
+	var utility_id: StringName = GameStateManager.get_equipped_module_id(&"utility_module")
+	if utility_id == &"":
+		if _repair_drone_visual != null:
+			_repair_drone_visual.visible = false
+		return
+
+	if _is_utility_disabled():
+		if Input.is_action_just_pressed("utility_activate"):
+			UIManager.show_toast("Utility systems disabled in EMP zone.", &"warning")
+		if _repair_drone_visual != null:
+			_repair_drone_visual.visible = false
+		return
+
+	if utility_id == &"tractor_beam":
+		_apply_tractor_beam(delta)
+	elif utility_id == &"repair_drone":
+		_update_repair_drone(delta)
+	else:
+		if _repair_drone_visual != null:
+			_repair_drone_visual.visible = false
+
+	if Input.is_action_just_pressed("utility_activate"):
+		_activate_utility_module(utility_id)
+
+
+func _activate_utility_module(utility_id: StringName) -> void:
+	match utility_id:
+		&"shield_burst":
+			if _utility_cooldown_remaining > 0.0:
+				UIManager.show_toast("Shield Burst cooling down.", &"info")
+				return
+			var restore_amount: float = GameStateManager.get_max_shield() * 0.5
+			GameStateManager.restore_shield(restore_amount)
+			_utility_cooldown_remaining = shield_burst_cooldown
+			add_trauma(0.08)
+			UIManager.show_toast("Shield Burst activated.", &"success")
+		_:
+			UIManager.show_toast("Utility has passive behavior.", &"info")
+
+
+func _apply_tractor_beam(delta: float) -> void:
+	for loot_variant in get_tree().get_nodes_in_group("loot_crate"):
+		var loot: Node2D = loot_variant as Node2D
+		if loot == null or not is_instance_valid(loot):
+			continue
+		var distance: float = global_position.distance_to(loot.global_position)
+		if distance > tractor_range:
+			continue
+		var to_ship: Vector2 = (global_position - loot.global_position)
+		if to_ship.length_squared() <= 0.001:
+			continue
+		loot.global_position += to_ship.normalized() * tractor_pull_speed * delta
+
+
+func _update_repair_drone(delta: float) -> void:
+	_ensure_repair_drone_visual()
+	if _repair_drone_visual == null:
+		return
+	_repair_drone_visual.visible = true
+	_repair_drone_angle += delta * repair_drone_orbit_speed
+	_repair_drone_visual.position = Vector2(cos(_repair_drone_angle), sin(_repair_drone_angle)) * repair_drone_orbit_radius
+	var heal_rate: float = repair_drone_heal_in_combat if _combat_state_remaining > 0.0 else repair_drone_heal_out_of_combat
+	GameStateManager.repair_hull(heal_rate * delta)
+
+
+func _ensure_repair_drone_visual() -> void:
+	if _repair_drone_visual != null and is_instance_valid(_repair_drone_visual):
+		return
+	_repair_drone_visual = Polygon2D.new()
+	_repair_drone_visual.name = "RepairDroneVisual"
+	_repair_drone_visual.polygon = PackedVector2Array([
+		Vector2(0.0, -6.0),
+		Vector2(5.0, 0.0),
+		Vector2(0.0, 6.0),
+		Vector2(-5.0, 0.0),
+	])
+	_repair_drone_visual.color = Color(0.7, 0.95, 1.0, 0.9)
+	_repair_drone_visual.visible = false
+	add_child(_repair_drone_visual)
 
 
 func _update_targeting() -> void:
@@ -777,6 +952,8 @@ func _update_mining_beam_visual(target_node: Node2D) -> void:
 func _update_shield_recharge(delta: float) -> void:
 	if GameStateManager.get_current_hull() <= 0.0:
 		return
+	if _shield_disable_remaining > 0.0:
+		return
 	var recharge_multiplier: float = _get_shield_recharge_multiplier()
 	GameStateManager.recharge_shield(delta, recharge_multiplier)
 
@@ -1093,6 +1270,8 @@ func _on_interaction_area_exited(area: Area2D) -> void:
 
 
 func _on_player_damage_applied(shield_damage: float, hull_damage: float) -> void:
+	if shield_damage > 0.0 or hull_damage > 0.0:
+		_combat_state_remaining = combat_state_duration
 	if shield_damage > 0.0:
 		_shield_hit_flash_remaining = 0.16
 	if hull_damage > 0.0:

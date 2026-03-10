@@ -1,6 +1,7 @@
 extends Node
 
 signal sector_changed(sector_id: StringName)
+signal galaxy_unlocked(galaxy_id: StringName)
 
 var unlocked_galaxies: Dictionary = {}
 var current_sector_id: StringName = &""
@@ -9,10 +10,12 @@ var current_galaxy_id: StringName = &""
 
 func _ready() -> void:
 	ContentDatabase.ensure_loaded()
+	sync_unlocks_from_progression_flags()
 
 
 func start_new_game(preferred_sector_id: StringName = &"anchor_station") -> Dictionary:
 	initialize_unlocks_for_new_game()
+	sync_unlocks_from_progression_flags()
 
 	var chosen_sector_id: StringName = preferred_sector_id
 	if ContentDatabase.get_sector(chosen_sector_id).is_empty():
@@ -75,7 +78,13 @@ func is_galaxy_unlocked(galaxy_id: StringName) -> bool:
 
 
 func unlock_galaxy(galaxy_id: StringName) -> void:
-	unlocked_galaxies[String(galaxy_id)] = true
+	var key: String = String(galaxy_id)
+	if key.is_empty():
+		return
+	var already_unlocked: bool = bool(unlocked_galaxies.get(key, false))
+	unlocked_galaxies[key] = true
+	if not already_unlocked:
+		galaxy_unlocked.emit(galaxy_id)
 
 
 func is_connection_unlocked(connection_data: Dictionary) -> bool:
@@ -85,3 +94,34 @@ func is_connection_unlocked(connection_data: Dictionary) -> bool:
 
 	# Required unlocks currently match galaxy IDs for inter-galaxy gate checks.
 	return is_galaxy_unlocked(StringName(required_unlock))
+
+
+func apply_unlock_target(unlock_target: StringName) -> bool:
+	match String(unlock_target):
+		"galaxy_2":
+			return _unlock_galaxy_with_feedback(&"galaxy_2", &"galaxy_2_unlocked", "Galaxy 2 Unlocked - Ion Expanse")
+		"galaxy_3":
+			return _unlock_galaxy_with_feedback(&"galaxy_3", &"galaxy_3_unlocked", "Galaxy 3 Unlocked - Relic Reach")
+		_:
+			return false
+
+
+func sync_unlocks_from_progression_flags() -> void:
+	if GameStateManager.has_progression_flag(&"crafted_warp_stabilizer_mk1"):
+		unlock_galaxy(&"galaxy_2")
+		GameStateManager.set_progression_flag(&"galaxy_2_unlocked", true)
+	if GameStateManager.has_progression_flag(&"crafted_long_range_warp_drive"):
+		unlock_galaxy(&"galaxy_3")
+		GameStateManager.set_progression_flag(&"galaxy_3_unlocked", true)
+
+
+func _unlock_galaxy_with_feedback(galaxy_id: StringName, story_flag: StringName, toast_message: String) -> bool:
+	if is_galaxy_unlocked(galaxy_id):
+		return false
+	unlock_galaxy(galaxy_id)
+	GameStateManager.set_progression_flag(story_flag, true)
+	UIManager.show_toast(toast_message, &"success")
+	UIManager.request_screen_flash(Color(0.82, 0.9, 1.0, 1.0), 0.25, 0.3)
+	UIManager.show_toast("Warp gate routes updated.", &"info")
+	SaveManager.autosave()
+	return true

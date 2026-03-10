@@ -152,6 +152,36 @@
 19. In-flight, verify simplified cargo panel is visible and updates when cargo changes.
 20. While docked, open the `Galaxy Map` tab and press `Open Galaxy Map`; close map and confirm return to station menu with world still paused.
 
+## Phase 07 Manual Checklist (Upgrades, Modules, Galaxy Expansion)
+
+1. Start a new game, dock at `Anchor Station`, and open `Upgrades`.
+2. Verify six upgrade paths are listed (`Hull`, `Shield`, `Engine`, `Cargo`, `Scanner`, `Mining`) with tier progression and costs.
+3. Purchase `Hull Plating Mk I` (after meeting requirements) and confirm max hull increases immediately.
+4. Confirm upgrade purchases only allow the next tier (cannot skip directly to Mk III).
+5. In module sections, buy and equip `Kinetic Cannon`; undock and verify:
+   - primary shots are slower/heavier than Pulse Laser
+   - damage and cadence differ from Pulse Laser baseline.
+6. Buy and equip `Railgun`; verify very high damage, slow cadence, and longer projectile range.
+7. Buy and equip `Missile Pod` secondary; press `R` and confirm homing behavior + reload cycle.
+8. Buy and equip `EMP Charge` secondary; fire and confirm AoE/EMP behavior on target groups.
+9. Buy and equip `Tractor Beam`; verify nearby loot crates are pulled toward the ship.
+10. Buy and equip `Repair Drone`; verify orbiting drone visual appears and hull regeneration is active.
+11. Buy and equip `Shield Burst`; press `C` and verify shield instantly restores by ~50% with cooldown.
+12. Validate power budget line updates when equipping modules (`Power used/capacity`).
+13. Attempt to equip an over-budget loadout and verify equip is blocked with a clear reason/tooltip.
+14. Validate mass/agility readout updates when equipping heavier modules.
+15. Confirm ship handling changes with heavy loadout (reduced acceleration/turn responsiveness).
+16. Craft `Warp Stabilizer Mk I` in workshop and verify:
+   - unlock toast appears for Galaxy 2
+   - brief screen flash appears
+   - Red Corsair Run -> Relay Market gate becomes usable.
+17. Warp into `Relay Market`, `Storm Fields`, and `Drone Foundry` and verify populated content (resources, hazards, patrols).
+18. Craft `Long-Range Warp Drive` and verify Galaxy 3 unlock feedback.
+19. Warp through `Drone Foundry` -> `Archive Gate`, then visit `Silent Orbit` and `Core Bastion`.
+20. Verify all Galaxy 3 sectors load with expected hazards/resources and alien patrol archetypes.
+21. Confirm loadout and upgrades persist across sector transitions and repeated docking/undocking.
+22. Hover module entries in station menu and verify tooltip includes current vs candidate comparison context.
+
 ## Deferred Runtime Checks (Future Phases)
 - Full mission board logic and station service implementation.
 - Upgrade/module purchasing and equipment compare flows.

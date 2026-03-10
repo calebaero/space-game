@@ -8,6 +8,9 @@ signal player_damage_applied(shield_damage: float, hull_damage: float)
 signal shield_depleted
 signal player_destroyed
 signal wreck_beacon_changed
+signal loadout_changed
+signal upgrades_changed
+signal stats_recalculated
 
 const STARTING_CREDITS: int = 200
 const SHIELD_RECHARGE_DELAY_SECONDS: float = 3.0
@@ -43,11 +46,26 @@ const INPUT_ACTIONS: Dictionary = {
 	"map_toggle": ["M"],
 	"pause": ["Escape"],
 }
+const LOADOUT_SLOT_NAMES: Array[StringName] = [&"primary_weapon", &"secondary_weapon", &"utility_module", &"special_module"]
+const SLOT_TO_COMPAT_KEY: Dictionary = {
+	"primary_weapon": "primary",
+	"secondary_weapon": "secondary",
+	"utility_module": "utility",
+	"special_module": "special",
+}
+const COMPAT_KEY_TO_SLOT: Dictionary = {
+	"primary": "primary_weapon",
+	"secondary": "secondary_weapon",
+	"utility": "utility_module",
+	"special": "special_module",
+}
 
 var player_stats: Dictionary = {}
 var credits: int = STARTING_CREDITS
 var cargo: Array[Dictionary] = []
 var relic_inventory: Dictionary = {}
+var ship_loadout: Dictionary = {}
+var owned_modules: Array[String] = []
 var equipped_modules: Dictionary = {}
 var installed_upgrades: Dictionary = {}
 var current_sector_id: StringName = &"anchor_station"
@@ -67,6 +85,7 @@ var _player_destroyed_emitted: bool = false
 
 func _ready() -> void:
 	_ensure_input_actions()
+	ContentDatabase.ensure_loaded()
 	reset_runtime_state(&"anchor_station")
 
 
@@ -85,23 +104,31 @@ func emit_queued_new_game_request_if_any() -> void:
 
 
 func reset_runtime_state(starting_sector_id: StringName = &"anchor_station") -> void:
+	ContentDatabase.ensure_loaded()
 	player_stats = DEFAULT_PLAYER_STATS.duplicate(true)
 	credits = STARTING_CREDITS
 	cargo = []
 	relic_inventory = {}
-	equipped_modules = {
-		"primary": "pulse_laser",
-		"secondary": "",
-		"utility": "",
-		"special": "",
+	ship_loadout = {
+		"primary_weapon": "pulse_laser",
+		"secondary_weapon": "",
+		"utility_module": "",
+		"special_module": "",
 	}
+	owned_modules = _build_starting_owned_modules()
 	installed_upgrades = {}
+	for path_id_variant in ContentDatabase.get_all_upgrade_paths().keys():
+		var path_id: String = String(path_id_variant)
+		if path_id.is_empty():
+			continue
+		installed_upgrades[path_id] = 0
+	_sync_equipped_modules_cache()
 	current_sector_id = starting_sector_id
 	last_docked_station_id = &"station_anchor_prime"
 	is_docked = false
 	docked_station_id = &""
-	current_hull = get_effective_stat(&"hull")
-	current_shield = get_effective_stat(&"shield")
+	current_hull = get_max_hull()
+	current_shield = get_max_shield()
 	_shield_recharge_delay_remaining = 0.0
 	_player_destroyed_emitted = false
 	discovered_sectors = {}
@@ -115,6 +142,9 @@ func reset_runtime_state(starting_sector_id: StringName = &"anchor_station") -> 
 	}
 	wreck_beacon_changed.emit()
 	cargo_changed.emit()
+	loadout_changed.emit()
+	upgrades_changed.emit()
+	stats_recalculated.emit()
 	hull_changed.emit(current_hull, get_max_hull())
 	shield_changed.emit(current_shield, get_max_shield())
 
@@ -143,10 +173,133 @@ func get_discovered_sectors() -> Array[String]:
 
 
 func get_effective_stat(stat_name: StringName) -> float:
-	# TODO(phase-later): apply module, upgrade, cargo mass, and temporary effect modifiers.
-	if not player_stats.has(String(stat_name)):
+	var stat_key: String = String(stat_name)
+	if not player_stats.has(stat_key):
 		return 0.0
-	return float(player_stats[String(stat_name)])
+	var base_value: float = float(player_stats[stat_key])
+	var effective_value: float = _apply_upgrade_bonus(stat_key, base_value)
+	effective_value = _apply_module_bonus(stat_key, effective_value)
+	effective_value = _apply_mass_penalty_to_stat(stat_key, effective_value)
+	effective_value = _apply_stat_special_cases(stat_key, effective_value)
+	return effective_value
+
+
+func get_upgrade_tier(path_id: StringName) -> int:
+	var key: String = String(path_id)
+	if key.is_empty():
+		return 0
+	return max(int(installed_upgrades.get(key, 0)), 0)
+
+
+func get_next_upgrade_tier_data(path_id: StringName) -> Dictionary:
+	var path_data: Dictionary = ContentDatabase.get_upgrade_path(path_id)
+	if path_data.is_empty():
+		return {}
+	var tiers: Array = path_data.get("tiers", [])
+	var current_tier: int = get_upgrade_tier(path_id)
+	if current_tier >= tiers.size():
+		return {}
+	var tier_data_variant: Variant = tiers[current_tier]
+	if tier_data_variant is not Dictionary:
+		return {}
+	var tier_data: Dictionary = (tier_data_variant as Dictionary).duplicate(true)
+	tier_data["tier"] = current_tier + 1
+	tier_data["path_id"] = String(path_id)
+	tier_data["path_name"] = String(path_data.get("name", path_id))
+	tier_data["stat_key"] = String(path_data.get("stat_key", ""))
+	return tier_data
+
+
+func preview_upgrade_stat(path_id: StringName) -> Dictionary:
+	var path_data: Dictionary = ContentDatabase.get_upgrade_path(path_id)
+	if path_data.is_empty():
+		return {}
+	var next_tier_data: Dictionary = get_next_upgrade_tier_data(path_id)
+	if next_tier_data.is_empty():
+		return {}
+	var stat_key: StringName = StringName(String(path_data.get("stat_key", "")))
+	var before_value: float = get_effective_stat(stat_key)
+	var key: String = String(path_id)
+	var previous_tier: int = get_upgrade_tier(path_id)
+	installed_upgrades[key] = previous_tier + 1
+	var after_value: float = get_effective_stat(stat_key)
+	installed_upgrades[key] = previous_tier
+	return {"before": before_value, "after": after_value, "stat_key": String(stat_key)}
+
+
+func can_purchase_upgrade(path_id: StringName) -> Dictionary:
+	var next_tier_data: Dictionary = get_next_upgrade_tier_data(path_id)
+	if next_tier_data.is_empty():
+		return {"can_purchase": false, "reason": "Max tier reached."}
+	var credits_cost: int = int(next_tier_data.get("cost_credits", 0))
+	if credits < credits_cost:
+		return {"can_purchase": false, "reason": "Not enough credits.", "missing_credits": credits_cost - credits}
+	var missing_inputs: Array[String] = []
+	for cost_variant in next_tier_data.get("cost_items", []):
+		if cost_variant is not Dictionary:
+			continue
+		var cost_data: Dictionary = cost_variant
+		var item_id: StringName = StringName(String(cost_data.get("item_id", "")))
+		var required_quantity: int = int(cost_data.get("quantity", 0))
+		if required_quantity <= 0:
+			continue
+		if has_cargo(item_id, required_quantity):
+			continue
+		missing_inputs.append("%s x%d" % [_get_item_name(item_id), required_quantity])
+	if not missing_inputs.is_empty():
+		return {"can_purchase": false, "reason": "Missing materials.", "missing": missing_inputs}
+	return {"can_purchase": true}
+
+
+func purchase_upgrade(path_id: StringName) -> Dictionary:
+	var path_data: Dictionary = ContentDatabase.get_upgrade_path(path_id)
+	if path_data.is_empty():
+		return {"success": false, "message": "Unknown upgrade path."}
+	var check: Dictionary = can_purchase_upgrade(path_id)
+	if not bool(check.get("can_purchase", false)):
+		return {"success": false, "message": String(check.get("reason", "Requirements not met."))}
+	var next_tier_data: Dictionary = get_next_upgrade_tier_data(path_id)
+	if next_tier_data.is_empty():
+		return {"success": false, "message": "Max tier reached."}
+
+	var stat_key: StringName = StringName(String(path_data.get("stat_key", "")))
+	var before_value: float = get_effective_stat(stat_key)
+	var before_max_hull: float = get_max_hull()
+	var before_max_shield: float = get_max_shield()
+	var missing_hull: float = before_max_hull - current_hull
+	var missing_shield: float = before_max_shield - current_shield
+
+	credits -= int(next_tier_data.get("cost_credits", 0))
+	for cost_variant in next_tier_data.get("cost_items", []):
+		if cost_variant is not Dictionary:
+			continue
+		var cost_data: Dictionary = cost_variant
+		var remove_id: StringName = StringName(String(cost_data.get("item_id", "")))
+		var remove_qty: int = int(cost_data.get("quantity", 0))
+		if remove_qty <= 0:
+			continue
+		remove_cargo(remove_id, remove_qty)
+
+	var key: String = String(path_id)
+	installed_upgrades[key] = get_upgrade_tier(path_id) + 1
+	upgrades_changed.emit()
+	stats_recalculated.emit()
+
+	var after_max_hull: float = get_max_hull()
+	var after_max_shield: float = get_max_shield()
+	current_hull = clampf(after_max_hull - missing_hull, 0.0, after_max_hull)
+	current_shield = clampf(after_max_shield - missing_shield, 0.0, after_max_shield)
+	hull_changed.emit(current_hull, after_max_hull)
+	shield_changed.emit(current_shield, after_max_shield)
+
+	var after_value: float = get_effective_stat(stat_key)
+	return {
+		"success": true,
+		"message": "%s Mk %d purchased." % [String(path_data.get("name", path_id)), int(next_tier_data.get("tier", 1))],
+		"before_value": before_value,
+		"after_value": after_value,
+		"stat_key": String(stat_key),
+	}
 
 
 func get_current_hull() -> float:
@@ -223,6 +376,17 @@ func restore_shield(amount: float) -> void:
 		return
 	current_shield = minf(current_shield + amount, get_max_shield())
 	shield_changed.emit(current_shield, get_max_shield())
+
+
+func disable_player_shields(duration: float) -> void:
+	if duration <= 0.0:
+		return
+	var had_shield: bool = current_shield > 0.0
+	current_shield = 0.0
+	_shield_recharge_delay_remaining = maxf(_shield_recharge_delay_remaining, duration)
+	shield_changed.emit(current_shield, get_max_shield())
+	if had_shield:
+		shield_depleted.emit()
 
 
 func recharge_shield(delta: float, multiplier: float = 1.0) -> void:
@@ -403,7 +567,10 @@ func restore_full_health() -> void:
 
 
 func get_equipped_weapon_id(slot_name: StringName) -> StringName:
-	return StringName(String(equipped_modules.get(String(slot_name), "")))
+	var compat_key: String = String(slot_name)
+	if COMPAT_KEY_TO_SLOT.has(compat_key):
+		return StringName(String(ship_loadout.get(String(COMPAT_KEY_TO_SLOT[compat_key]), "")))
+	return StringName(String(ship_loadout.get(compat_key, "")))
 
 
 func get_equipped_weapon_definition(slot_name: StringName) -> Dictionary:
@@ -414,7 +581,175 @@ func get_equipped_weapon_definition(slot_name: StringName) -> Dictionary:
 
 
 func set_equipped_weapon(slot_name: StringName, weapon_id: StringName) -> void:
-	equipped_modules[String(slot_name)] = String(weapon_id)
+	var compat_key: String = String(slot_name)
+	var slot_key: String = compat_key
+	if COMPAT_KEY_TO_SLOT.has(compat_key):
+		slot_key = String(COMPAT_KEY_TO_SLOT[compat_key])
+	var result: Dictionary = equip_module(StringName(slot_key), weapon_id, true)
+	if not bool(result.get("success", false)):
+		push_warning("GameStateManager failed to equip %s in %s: %s" % [weapon_id, slot_name, String(result.get("message", "unknown"))])
+
+
+func get_equipped_module_id(slot_name: StringName) -> StringName:
+	var key: String = String(slot_name)
+	if key.is_empty():
+		return &""
+	return StringName(String(ship_loadout.get(key, "")))
+
+
+func get_equipped_module_definition(slot_name: StringName) -> Dictionary:
+	var module_id: StringName = get_equipped_module_id(slot_name)
+	if module_id == &"":
+		return {}
+	return ContentDatabase.get_module_definition(module_id)
+
+
+func get_owned_modules() -> Array[String]:
+	return owned_modules.duplicate()
+
+
+func get_ship_loadout() -> Dictionary:
+	return ship_loadout.duplicate(true)
+
+
+func is_module_owned(module_id: StringName) -> bool:
+	var key: String = String(module_id)
+	if key.is_empty():
+		return false
+	return owned_modules.has(key)
+
+
+func add_owned_module(module_id: StringName) -> void:
+	var key: String = String(module_id)
+	if key.is_empty():
+		return
+	if owned_modules.has(key):
+		return
+	owned_modules.append(key)
+	loadout_changed.emit()
+
+
+func can_purchase_module(module_id: StringName) -> Dictionary:
+	var module_data: Dictionary = ContentDatabase.get_module_definition(module_id)
+	if module_data.is_empty():
+		return {"can_purchase": false, "reason": "Unknown module."}
+	if is_module_owned(module_id):
+		return {"can_purchase": false, "reason": "Module already owned."}
+	var credits_cost: int = int(module_data.get("cost_credits", 0))
+	var missing: Array[String] = []
+	if credits < credits_cost:
+		missing.append("%d credits" % (credits_cost - credits))
+	for cost_variant in module_data.get("cost_items", []):
+		if cost_variant is not Dictionary:
+			continue
+		var cost_data: Dictionary = cost_variant
+		var item_id: StringName = StringName(String(cost_data.get("item_id", "")))
+		var quantity: int = int(cost_data.get("quantity", 0))
+		if quantity <= 0:
+			continue
+		if has_cargo(item_id, quantity):
+			continue
+		missing.append("%s x%d" % [_get_item_name(item_id), quantity])
+	if not missing.is_empty():
+		return {"can_purchase": false, "reason": "Missing requirements: %s" % ", ".join(missing), "missing": missing}
+	return {"can_purchase": true}
+
+
+func purchase_module(module_id: StringName) -> Dictionary:
+	var module_data: Dictionary = ContentDatabase.get_module_definition(module_id)
+	if module_data.is_empty():
+		return {"success": false, "message": "Unknown module."}
+	var check: Dictionary = can_purchase_module(module_id)
+	if not bool(check.get("can_purchase", false)):
+		return {"success": false, "message": String(check.get("reason", "Requirements not met."))}
+	credits -= int(module_data.get("cost_credits", 0))
+	for cost_variant in module_data.get("cost_items", []):
+		if cost_variant is not Dictionary:
+			continue
+		var cost_data: Dictionary = cost_variant
+		var item_id: StringName = StringName(String(cost_data.get("item_id", "")))
+		var quantity: int = int(cost_data.get("quantity", 0))
+		if quantity <= 0:
+			continue
+		remove_cargo(item_id, quantity)
+	add_owned_module(module_id)
+	return {"success": true, "message": "%s acquired." % String(module_data.get("name", module_id))}
+
+
+func can_equip_module(slot_name: StringName, module_id: StringName) -> Dictionary:
+	var slot_key: String = String(slot_name)
+	if slot_key.is_empty() or not LOADOUT_SLOT_NAMES.has(StringName(slot_key)):
+		return {"can_equip": false, "reason": "Invalid slot."}
+	if slot_key == "special_module" and not has_progression_flag(&"special_module_slot_unlocked"):
+		return {"can_equip": false, "reason": "Special slot is locked."}
+	if module_id != &"":
+		var module_data: Dictionary = ContentDatabase.get_module_definition(module_id)
+		if module_data.is_empty():
+			return {"can_equip": false, "reason": "Unknown module."}
+		if not is_module_owned(module_id):
+			return {"can_equip": false, "reason": "Module not owned."}
+		if String(module_data.get("slot", "")) != slot_key:
+			return {"can_equip": false, "reason": "Wrong slot type."}
+
+	var power_capacity: float = get_effective_stat(&"power_capacity")
+	var projected_usage: float = _calculate_power_usage_with_override(slot_key, module_id)
+	if projected_usage > power_capacity + 0.001:
+		return {
+			"can_equip": false,
+			"reason": "Power budget exceeded.",
+			"power_used": projected_usage,
+			"power_capacity": power_capacity,
+		}
+
+	return {
+		"can_equip": true,
+		"power_used": projected_usage,
+		"power_capacity": power_capacity,
+	}
+
+
+func equip_module(slot_name: StringName, module_id: StringName, allow_unsafe: bool = false) -> Dictionary:
+	var slot_key: String = String(slot_name)
+	if slot_key.is_empty():
+		return {"success": false, "message": "Invalid slot."}
+	if not allow_unsafe:
+		var check: Dictionary = can_equip_module(slot_name, module_id)
+		if not bool(check.get("can_equip", false)):
+			return {"success": false, "message": String(check.get("reason", "Equip blocked."))}
+
+	ship_loadout[slot_key] = String(module_id)
+	_sync_equipped_modules_cache()
+	loadout_changed.emit()
+	stats_recalculated.emit()
+	hull_changed.emit(current_hull, get_max_hull())
+	shield_changed.emit(current_shield, get_max_shield())
+	return {"success": true}
+
+
+func get_power_usage() -> float:
+	return _calculate_power_usage_with_override("", &"")
+
+
+func get_power_capacity() -> float:
+	return get_effective_stat(&"power_capacity")
+
+
+func get_loadout_mass() -> float:
+	return _calculate_loadout_mass_with_override("", &"")
+
+
+func preview_power_usage(slot_name: StringName, module_id: StringName) -> float:
+	return _calculate_power_usage_with_override(String(slot_name), module_id)
+
+
+func preview_loadout_mass(slot_name: StringName, module_id: StringName) -> float:
+	return _calculate_loadout_mass_with_override(String(slot_name), module_id)
+
+
+func get_agility_multiplier_for_mass(mass_value: float = -1.0) -> float:
+	if mass_value < 0.0:
+		mass_value = get_total_mass()
+	return maxf(0.3, 1.0 - (mass_value * 0.01))
 
 
 func add_relic(relic_id: StringName, quantity: int) -> void:
@@ -469,15 +804,170 @@ func get_cargo_weight() -> float:
 
 
 func get_total_mass() -> float:
-	# TODO(phase-later): derive exact mass from module and upgrade data definitions.
-	var module_mass: float = 0.0
-	for module_id_variant in equipped_modules.values():
-		if String(module_id_variant) != "":
-			module_mass += 1.5
+	var loadout_mass: float = get_loadout_mass()
+	var upgrade_mass: float = 0.0
+	for tier_variant in installed_upgrades.values():
+		var tier_value: int = max(int(tier_variant), 0)
+		upgrade_mass += float(tier_value) * 0.45
+	return loadout_mass + upgrade_mass
 
-	var upgrade_mass: float = float(installed_upgrades.size()) * 0.5
-	var cargo_mass: float = get_cargo_weight() * 0.02
-	return module_mass + upgrade_mass + cargo_mass
+
+func _apply_upgrade_bonus(stat_key: String, base_value: float) -> float:
+	var adjusted: float = base_value
+	for path_variant in ContentDatabase.get_all_upgrade_paths().values():
+		if path_variant is not Dictionary:
+			continue
+		var path_data: Dictionary = path_variant
+		if String(path_data.get("stat_key", "")) != stat_key:
+			continue
+
+		var path_id: String = String(path_data.get("id", ""))
+		if path_id.is_empty():
+			continue
+		var tier: int = get_upgrade_tier(StringName(path_id))
+		if tier <= 0:
+			continue
+		var tiers: Array = path_data.get("tiers", [])
+		if tier - 1 < 0 or tier - 1 >= tiers.size():
+			continue
+		var tier_data_variant: Variant = tiers[tier - 1]
+		if tier_data_variant is not Dictionary:
+			continue
+		var tier_data: Dictionary = tier_data_variant
+		var bonus_mode: String = String(tier_data.get("bonus_mode", "add"))
+		var bonus_value: float = float(tier_data.get("bonus_value", 0.0))
+		match bonus_mode:
+			"add":
+				adjusted = base_value + bonus_value
+			"mul":
+				adjusted = base_value * (1.0 + bonus_value)
+			"set":
+				adjusted = bonus_value
+			_:
+				adjusted = adjusted
+	return adjusted
+
+
+func _apply_module_bonus(stat_key: String, current_value: float) -> float:
+	var adjusted: float = current_value
+	for slot_variant in LOADOUT_SLOT_NAMES:
+		var slot_key: String = String(slot_variant)
+		var module_id: StringName = get_equipped_module_id(StringName(slot_key))
+		if module_id == &"":
+			continue
+		var module_data: Dictionary = ContentDatabase.get_module_definition(module_id)
+		if module_data.is_empty():
+			continue
+		var stat_bonuses: Dictionary = module_data.get("stat_bonuses", {})
+		if not stat_bonuses.has(stat_key):
+			continue
+		var bonus_data_variant: Variant = stat_bonuses[stat_key]
+		if bonus_data_variant is not Dictionary:
+			continue
+		var bonus_data: Dictionary = bonus_data_variant
+		var mode: String = String(bonus_data.get("mode", "add"))
+		var value: float = float(bonus_data.get("value", 0.0))
+		match mode:
+			"add":
+				adjusted += value
+			"mul":
+				adjusted *= (1.0 + value)
+			"set":
+				adjusted = value
+			_:
+				adjusted = adjusted
+	return adjusted
+
+
+func _apply_mass_penalty_to_stat(stat_key: String, current_value: float) -> float:
+	if stat_key != "thrust" and stat_key != "turn_speed":
+		return current_value
+	var mass_multiplier: float = maxf(0.3, 1.0 - (get_total_mass() * 0.01))
+	return current_value * mass_multiplier
+
+
+func _apply_stat_special_cases(stat_key: String, current_value: float) -> float:
+	if stat_key == "scanner_cooldown":
+		var scanner_tier: int = get_upgrade_tier(&"scanner")
+		match scanner_tier:
+			1:
+				return 6.0
+			2:
+				return 4.0
+			3:
+				return 2.0
+			_:
+				return current_value
+	return current_value
+
+
+func _build_starting_owned_modules() -> Array[String]:
+	var result: Array[String] = []
+	for module_variant in ContentDatabase.get_all_module_definitions().values():
+		if module_variant is not Dictionary:
+			continue
+		var module_data: Dictionary = module_variant
+		if not bool(module_data.get("starting_owned", false)):
+			continue
+		var module_id: String = String(module_data.get("id", ""))
+		if module_id.is_empty():
+			continue
+		result.append(module_id)
+	if not result.has("pulse_laser"):
+		result.append("pulse_laser")
+	return result
+
+
+func _sync_equipped_modules_cache() -> void:
+	equipped_modules = {
+		"primary": String(ship_loadout.get("primary_weapon", "")),
+		"secondary": String(ship_loadout.get("secondary_weapon", "")),
+		"utility": String(ship_loadout.get("utility_module", "")),
+		"special": String(ship_loadout.get("special_module", "")),
+	}
+
+
+func _calculate_power_usage_with_override(slot_key: String, module_id: StringName) -> float:
+	var total_power: float = 0.0
+	for slot_variant in LOADOUT_SLOT_NAMES:
+		var each_slot: String = String(slot_variant)
+		var equipped_id: StringName = get_equipped_module_id(StringName(each_slot))
+		if each_slot == slot_key:
+			equipped_id = module_id
+		if equipped_id == &"":
+			continue
+		var module_data: Dictionary = ContentDatabase.get_module_definition(equipped_id)
+		if module_data.is_empty():
+			var weapon_data: Dictionary = ContentDatabase.get_weapon_definition(equipped_id)
+			total_power += float(weapon_data.get("power_draw", 0.0))
+			continue
+		total_power += float(module_data.get("power_draw", 0.0))
+	return total_power
+
+
+func _calculate_loadout_mass_with_override(slot_key: String, module_id: StringName) -> float:
+	var total_mass: float = 0.0
+	for slot_variant in LOADOUT_SLOT_NAMES:
+		var each_slot: String = String(slot_variant)
+		var equipped_id: StringName = get_equipped_module_id(StringName(each_slot))
+		if each_slot == slot_key:
+			equipped_id = module_id
+		if equipped_id == &"":
+			continue
+		var module_data: Dictionary = ContentDatabase.get_module_definition(equipped_id)
+		if module_data.is_empty():
+			var weapon_data: Dictionary = ContentDatabase.get_weapon_definition(equipped_id)
+			total_mass += float(weapon_data.get("mass", 0.0))
+			continue
+		total_mass += float(module_data.get("mass", 0.0))
+	return total_mass
+
+
+func _get_item_name(item_id: StringName) -> String:
+	var item_def: Dictionary = ContentDatabase.get_item_definition(item_id)
+	if item_def.is_empty():
+		item_def = ContentDatabase.get_resource_definition(item_id)
+	return String(item_def.get("name", item_id))
 
 
 func _find_cargo_entry_quantity(resource_id: StringName) -> int:

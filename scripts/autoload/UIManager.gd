@@ -5,6 +5,7 @@ signal toast_state_changed(message: String, category: StringName, alpha: float, 
 signal tooltip_requested(text: String, position: Vector2)
 signal tooltip_hidden
 signal wreck_recovery_requested(wreck_beacon: Node)
+signal screen_flash_requested(color: Color, duration: float, max_alpha: float)
 
 # TODO(phase-later): centralize UI stack management, transitions, and menu routing.
 
@@ -72,6 +73,14 @@ func request_wreck_recovery(wreck_beacon: Node) -> void:
 	if wreck_beacon == null:
 		return
 	wreck_recovery_requested.emit(wreck_beacon)
+
+
+func request_screen_flash(color: Color = Color(1.0, 1.0, 1.0, 1.0), duration: float = 0.25, max_alpha: float = 0.32) -> void:
+	if duration <= 0.0:
+		return
+	if max_alpha <= 0.0:
+		return
+	screen_flash_requested.emit(color, duration, max_alpha)
 
 
 func transition_to_scene(scene_path: String) -> void:

@@ -1,5 +1,44 @@
 # Changelog — Space Explorer
 
+## Phase 07
+- Implemented linear ship upgrade progression (6 paths x 3 tiers) through data-driven definitions:
+  - Added `data/items/upgrades.tres` with tier costs, item requirements, and stat bonus modes.
+  - Extended `GameStateManager` with purchase validation, progression locks (next-tier only), and stat preview helpers.
+- Implemented data-driven module/loadout system:
+  - Added `data/items/modules.tres` and `scripts/core/ModuleCatalog.gd`.
+  - Added slot-based loadout model to `GameStateManager` (`primary_weapon`, `secondary_weapon`, `utility_module`, `special_module`).
+  - Added owned-module purchasing and equip flow with power-budget enforcement and mass preview support.
+- Added all required Phase 07 loadout content:
+  - Primary: `pulse_laser`, `kinetic_cannon`, `railgun`
+  - Secondary: `missile_pod`, `emp_charge`
+  - Utility: `tractor_beam`, `repair_drone`, `shield_burst`
+- Expanded weapon behavior integration:
+  - Player primary/secondary now use equipped loadout data.
+  - Missile pod supports homing + clip/reload behavior.
+  - EMP charge supports AoE + temporary shield disable payload.
+- Added utility module runtime behaviors in `PlayerShip`:
+  - Tractor beam pulls loot crates within range.
+  - Repair drone spawns orbiting visual and applies in/out-of-combat hull regen.
+  - Shield burst active utility restores 50% max shield on cooldown.
+- Extended projectile/damage systems:
+  - `Projectile` supports homing targets, AoE payloads, and shield-disable effects.
+  - `Damageable` now supports temporary shield disable windows.
+- Implemented Galaxy progression unlock wiring:
+  - Workshop crafting now routes `unlock_target` through `GalaxyManager.apply_unlock_target()`.
+  - Added galaxy unlock toasts + autosave trigger + screen flash feedback.
+- Expanded content loading pipeline:
+  - Added `scripts/core/UpgradeCatalog.gd` and `scripts/core/ModuleCatalog.gd`.
+  - `ContentDatabase` now loads module and upgrade catalogs and exposes query helpers.
+- Added Galaxy 2 and Galaxy 3 sector content population data:
+  - Expanded `Relay Market`, `Storm Fields`, `Drone Foundry`, `Archive Gate`, `Silent Orbit`, `Core Bastion`.
+  - Added resource/hazard/anomaly/enemy patrol definitions and inter-galaxy gate lock requirements.
+- Added late-game enemy archetypes and visuals:
+  - `Alien Hunter` and `Alien Sentinel` definitions in `data/enemies/enemy_archetypes.tres`.
+  - Extended `EnemyShip` faction visuals for alien silhouettes.
+- Expanded station upgrades tab into a functional upgrade + module management page:
+  - Core upgrade rows with tier status, cost display, and purchase actions.
+  - Module sections by slot with buy/equip states, power/mass impact, and comparison tooltips.
+
 ## Phase 06
 - Expanded station loop from placeholder shell to functional tabbed service UI:
   - Added top tab actions for Missions, Market, Refinery, Workshop, Upgrades, Repair, Galaxy Map, and Undock.

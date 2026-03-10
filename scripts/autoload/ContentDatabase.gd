@@ -10,6 +10,8 @@ const GALAXY_DATA_PATHS := [
 const RESOURCE_CATALOG_PATH: String = "res://data/items/resources.tres"
 const ITEM_CATALOG_PATH: String = "res://data/items/items.tres"
 const WEAPON_CATALOG_PATH: String = "res://data/items/weapons.tres"
+const MODULE_CATALOG_PATH: String = "res://data/items/modules.tres"
+const UPGRADE_CATALOG_PATH: String = "res://data/items/upgrades.tres"
 const ENEMY_ARCHETYPES_PATH: String = "res://data/enemies/enemy_archetypes.tres"
 const MARKET_PROFILE_PATH: String = "res://data/economy/market_profiles.tres"
 const REFINING_RECIPES_PATH: String = "res://data/economy/refining_recipes.tres"
@@ -32,6 +34,8 @@ var _sectors: Dictionary = {}
 var _resources_by_id: Dictionary = {}
 var _items_by_id: Dictionary = {}
 var _weapons_by_id: Dictionary = {}
+var _modules_by_id: Dictionary = {}
+var _upgrade_paths_by_id: Dictionary = {}
 var _enemy_archetypes_by_id: Dictionary = {}
 var _node_tiers_by_tier: Dictionary = {}
 var _hazard_types_by_id: Dictionary = {}
@@ -54,6 +58,8 @@ func load_content(force_reload: bool = false) -> void:
 	_resources_by_id.clear()
 	_items_by_id.clear()
 	_weapons_by_id.clear()
+	_modules_by_id.clear()
+	_upgrade_paths_by_id.clear()
 	_enemy_archetypes_by_id.clear()
 	_node_tiers_by_tier.clear()
 	_hazard_types_by_id.clear()
@@ -63,6 +69,8 @@ func load_content(force_reload: bool = false) -> void:
 	_load_resource_catalog()
 	_load_item_catalog()
 	_load_weapon_catalog()
+	_load_module_catalog()
+	_load_upgrade_catalog()
 	_load_enemy_archetypes()
 	_load_market_profile()
 	_load_recipe_catalogs()
@@ -169,6 +177,32 @@ func get_weapon_definition(weapon_id: StringName) -> Dictionary:
 	if not _weapons_by_id.has(key):
 		return {}
 	return (_weapons_by_id[key] as Dictionary).duplicate(true)
+
+
+func get_all_module_definitions() -> Dictionary:
+	ensure_loaded()
+	return _modules_by_id.duplicate(true)
+
+
+func get_module_definition(module_id: StringName) -> Dictionary:
+	ensure_loaded()
+	var key: String = String(module_id)
+	if not _modules_by_id.has(key):
+		return {}
+	return (_modules_by_id[key] as Dictionary).duplicate(true)
+
+
+func get_all_upgrade_paths() -> Dictionary:
+	ensure_loaded()
+	return _upgrade_paths_by_id.duplicate(true)
+
+
+func get_upgrade_path(path_id: StringName) -> Dictionary:
+	ensure_loaded()
+	var key: String = String(path_id)
+	if not _upgrade_paths_by_id.has(key):
+		return {}
+	return (_upgrade_paths_by_id[key] as Dictionary).duplicate(true)
 
 
 func get_all_enemy_archetypes() -> Dictionary:
@@ -295,6 +329,46 @@ func _load_weapon_catalog() -> void:
 		if weapon_id.is_empty():
 			continue
 		_weapons_by_id[weapon_id] = weapon_entry
+
+
+func _load_module_catalog() -> void:
+	var catalog_resource: Resource = load(MODULE_CATALOG_PATH)
+	if catalog_resource == null:
+		push_warning("ContentDatabase failed to load module catalog at: %s" % MODULE_CATALOG_PATH)
+		return
+	if not (catalog_resource is ModuleCatalog):
+		push_warning("Module catalog has wrong type at: %s" % MODULE_CATALOG_PATH)
+		return
+
+	var catalog: ModuleCatalog = catalog_resource
+	for module_variant in catalog.modules:
+		if module_variant is not Dictionary:
+			continue
+		var module_entry: Dictionary = (module_variant as Dictionary).duplicate(true)
+		var module_id: String = String(module_entry.get("id", ""))
+		if module_id.is_empty():
+			continue
+		_modules_by_id[module_id] = module_entry
+
+
+func _load_upgrade_catalog() -> void:
+	var catalog_resource: Resource = load(UPGRADE_CATALOG_PATH)
+	if catalog_resource == null:
+		push_warning("ContentDatabase failed to load upgrade catalog at: %s" % UPGRADE_CATALOG_PATH)
+		return
+	if not (catalog_resource is UpgradeCatalog):
+		push_warning("Upgrade catalog has wrong type at: %s" % UPGRADE_CATALOG_PATH)
+		return
+
+	var catalog: UpgradeCatalog = catalog_resource
+	for path_variant in catalog.paths:
+		if path_variant is not Dictionary:
+			continue
+		var path_entry: Dictionary = (path_variant as Dictionary).duplicate(true)
+		var path_id: String = String(path_entry.get("id", ""))
+		if path_id.is_empty():
+			continue
+		_upgrade_paths_by_id[path_id] = path_entry
 
 
 func _load_enemy_archetypes() -> void:

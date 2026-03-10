@@ -25,6 +25,7 @@ extends CanvasLayer
 
 var _player_ship: CharacterBody2D = null
 var _hull_flash_timer: float = 0.0
+var _screen_flash_decay_rate: float = 6.5
 
 const TOAST_COLORS: Dictionary = {
 	"warning": Color(1.0, 0.66, 0.22, 1.0),
@@ -49,6 +50,8 @@ func _ready() -> void:
 
 	if not UIManager.toast_state_changed.is_connected(_on_toast_state_changed):
 		UIManager.toast_state_changed.connect(_on_toast_state_changed)
+	if UIManager.has_signal("screen_flash_requested") and not UIManager.screen_flash_requested.is_connected(_on_screen_flash_requested):
+		UIManager.screen_flash_requested.connect(_on_screen_flash_requested)
 	if not GameStateManager.player_damage_applied.is_connected(_on_player_damage_applied):
 		GameStateManager.player_damage_applied.connect(_on_player_damage_applied)
 
@@ -208,7 +211,12 @@ func _update_incoming_warning() -> void:
 func _update_damage_flash() -> void:
 	if damage_flash.color.a <= 0.0:
 		return
-	damage_flash.color.a = maxf(damage_flash.color.a - get_process_delta_time() * 6.5, 0.0)
+	var decay_rate: float = _screen_flash_decay_rate
+	if decay_rate <= 0.0:
+		decay_rate = 6.5
+	damage_flash.color.a = maxf(damage_flash.color.a - get_process_delta_time() * decay_rate, 0.0)
+	if damage_flash.color.a <= 0.0:
+		_screen_flash_decay_rate = 6.5
 
 
 func _on_toast_state_changed(message: String, category: StringName, alpha: float, visible: bool) -> void:
@@ -226,4 +234,12 @@ func _on_toast_state_changed(message: String, category: StringName, alpha: float
 func _on_player_damage_applied(_shield_damage: float, hull_damage: float) -> void:
 	if hull_damage <= 0.0:
 		return
-	damage_flash.color.a = minf(damage_flash.color.a + clampf(hull_damage / 40.0, 0.16, 0.4), 0.5)
+	damage_flash.color = Color(1.0, 0.2, 0.2, minf(damage_flash.color.a + clampf(hull_damage / 40.0, 0.16, 0.4), 0.5))
+	_screen_flash_decay_rate = 6.5
+
+
+func _on_screen_flash_requested(color: Color, duration: float, max_alpha: float) -> void:
+	if duration <= 0.0 or max_alpha <= 0.0:
+		return
+	damage_flash.color = Color(color.r, color.g, color.b, maxf(damage_flash.color.a, max_alpha))
+	_screen_flash_decay_rate = max_alpha / duration
