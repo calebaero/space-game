@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SectorDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/SectorDefinition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ferrite_belt"
+display_name = "Ferrite Belt"
+galaxy_id = "galaxy_1"
+connections = [{"required_unlock": "", "sector_id": "anchor_station"}, {"required_unlock": "", "sector_id": "red_corsair_run"}]
+threat_level = 2
+background_tint = Color(0.24, 0.33, 0.6, 1)
+station_data = {"dockable": false, "economy_type": "frontier", "id": "outpost_ferrite_stub", "name": "Ferrite Outpost (Stub)", "position": Vector2(80, 160), "services": [], "type": "outpost_stub"}
+planets = [{"color": Color(0.45, 0.36, 0.26, 1), "position": Vector2(-980, -560), "radius": 200.0, "type": "rocky"}, {"color": Color(0.57, 0.44, 0.3, 1), "position": Vector2(1180, 720), "radius": 280.0, "type": "rocky"}]
+warp_gates = [{"destination_sector_id": "anchor_station", "id": "gate_ferrite_west", "locked": false, "position": Vector2(-3800, -180), "unlock_requirement": ""}, {"destination_sector_id": "red_corsair_run", "id": "gate_ferrite_east", "locked": false, "position": Vector2(3800, 220), "unlock_requirement": ""}]
+anomaly_points = [{"id": "anomaly_ferrite_data_cache", "position": Vector2(-560, 260), "type": "data_cache"}, {"id": "anomaly_ferrite_energy", "position": Vector2(980, -940), "type": "energy_reading"}]
+resource_nodes = [{"id": "node_ferrite_ore_01", "position": Vector2(-520, -260), "resource_id": "common_ore", "tier": 1}, {"id": "node_ferrite_ore_02", "position": Vector2(-300, -110), "resource_id": "common_ore", "tier": 1}, {"id": "node_ferrite_ore_03", "position": Vector2(-20, -360), "resource_id": "common_ore", "tier": 1}, {"id": "node_ferrite_ore_04", "position": Vector2(220, -180), "resource_id": "common_ore", "tier": 2}, {"id": "node_ferrite_ore_05", "position": Vector2(420, 40), "resource_id": "common_ore", "tier": 2}, {"id": "node_ferrite_ore_06", "position": Vector2(700, 220), "resource_id": "common_ore", "tier": 1}, {"id": "node_ferrite_ore_07", "position": Vector2(1080, 360), "resource_id": "common_ore", "tier": 1}, {"id": "node_ferrite_crystal_01", "position": Vector2(-760, 420), "resource_id": "industrial_crystal", "tier": 1}, {"id": "node_ferrite_crystal_02", "position": Vector2(-260, 620), "resource_id": "industrial_crystal", "tier": 1}, {"id": "node_ferrite_crystal_03", "position": Vector2(420, 760), "resource_id": "industrial_crystal", "tier": 1}]
+asteroid_fields = [{"asteroid_count_max": 8, "asteroid_count_min": 5, "id": "field_ferrite_west", "mineable_ratio": 0.45, "position": Vector2(-1400, 240), "radius": 520.0, "resource_id": "common_ore", "tier": 1}, {"asteroid_count_max": 8, "asteroid_count_min": 5, "id": "field_ferrite_east", "mineable_ratio": 0.5, "position": Vector2(1460, -420), "radius": 560.0, "resource_id": "common_ore", "tier": 2}]
+hazard_zones = [{"hazard_type": "debris_field", "id": "hazard_ferrite_debris", "position": Vector2(520, -1120), "radius": 720.0}]
+loot_crates = [{ "hidden_until_scanned": true, "position": Vector2(300, -1260), "contents": [{ "item_type": "resource", "item_id": "industrial_crystal", "quantity": 2 }] }, { "hidden_until_scanned": true, "position": Vector2(-1820, -320), "contents": [{ "item_type": "credits", "item_id": "", "quantity": 45 }] }]
+enemy_patrols = [{"archetypes": ["pirate_skirmisher", "pirate_skirmisher"], "center": Vector2(-2100, -850), "id": "patrol_ferrite_northwest", "radius": 420.0}, {"archetypes": ["pirate_skirmisher", "pirate_skirmisher"], "center": Vector2(1960, 1150), "id": "patrol_ferrite_southeast", "radius": 480.0}, {"archetypes": ["pirate_bomber"], "center": Vector2(1460, -420), "id": "patrol_ferrite_bomber", "radius": 320.0}]
+hazard_types = PackedStringArray("debris_field")
+content_tags = PackedStringArray("asteroid_clusters", "resource_zones", "enemy_patrols")

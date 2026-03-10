@@ -1,0 +1,46 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/GameRoot.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/ui/HUD.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/ui/StationMenu.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/ui/GalaxyMapScreen.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/ui/WarpTransitionOverlay.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://scenes/ui/BossHealthBar.tscn" id="7"]
+[ext_resource type="PackedScene" path="res://scenes/ui/GameOverScreen.tscn" id="8"]
+[ext_resource type="PackedScene" path="res://scenes/ui/WreckRecoveryPanel.tscn" id="9"]
+
+[node name="GameRoot" type="Node"]
+script = ExtResource("1")
+
+[node name="ActiveSectorContainer" type="Node2D" parent="."]
+unique_name_in_owner = true
+
+[node name="PersistentUI" type="Node" parent="."]
+
+[node name="HUD" parent="PersistentUI" instance=ExtResource("3")]
+unique_name_in_owner = true
+
+[node name="PauseLayer" type="CanvasLayer" parent="PersistentUI"]
+layer = 10
+
+[node name="PauseMenu" parent="PersistentUI/PauseLayer" instance=ExtResource("2")]
+unique_name_in_owner = true
+
+[node name="StationMenu" parent="PersistentUI" instance=ExtResource("4")]
+unique_name_in_owner = true
+
+[node name="GalaxyMapScreen" parent="PersistentUI" instance=ExtResource("5")]
+unique_name_in_owner = true
+
+[node name="BossHealthBar" parent="PersistentUI" instance=ExtResource("7")]
+unique_name_in_owner = true
+
+[node name="GameOverScreen" parent="PersistentUI" instance=ExtResource("8")]
+unique_name_in_owner = true
+
+[node name="WreckRecoveryPanel" parent="PersistentUI" instance=ExtResource("9")]
+unique_name_in_owner = true
+
+[node name="WarpTransitionOverlay" parent="." instance=ExtResource("6")]
+unique_name_in_owner = true

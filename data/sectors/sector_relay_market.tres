@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SectorDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/SectorDefinition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "relay_market"
+display_name = "Relay Market"
+galaxy_id = "galaxy_2"
+connections = [{"required_unlock": "galaxy_2", "sector_id": "red_corsair_run"}, {"required_unlock": "", "sector_id": "storm_fields"}]
+threat_level = 4
+background_tint = Color(0.4, 0.24, 0.56, 1)
+station_data = {"dockable": true, "economy_type": "research", "id": "station_relay_exchange", "name": "Relay Exchange", "position": Vector2(-220, -60), "services": ["market", "upgrades", "repair", "galaxy_map"], "type": "research"}
+planets = [{"color": Color(0.43, 0.3, 0.58, 1), "position": Vector2(1020, 420), "radius": 260.0, "type": "ion"}]
+warp_gates = [{"destination_sector_id": "red_corsair_run", "id": "gate_relay_west", "locked": true, "position": Vector2(-3800, -120), "unlock_requirement": "galaxy_2"}, {"destination_sector_id": "storm_fields", "id": "gate_relay_east", "locked": false, "position": Vector2(3800, 160), "unlock_requirement": ""}]
+anomaly_points = []
+hazard_types = PackedStringArray()
+content_tags = PackedStringArray("trade_hub", "resource_zones")

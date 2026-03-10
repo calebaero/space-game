@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SectorDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/SectorDefinition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "anchor_station"
+display_name = "Anchor Station"
+galaxy_id = "galaxy_1"
+connections = [{"required_unlock": "", "sector_id": "ferrite_belt"}]
+threat_level = 1
+background_tint = Color(0.22, 0.32, 0.58, 1)
+station_data = {"dockable": true, "economy_type": "frontier", "id": "station_anchor_prime", "name": "Anchor Station", "position": Vector2(-140, 20), "services": ["missions", "market", "refinery", "workshop", "upgrades", "repair", "galaxy_map"], "type": "frontier"}
+planets = [{"color": Color(0.5, 0.39, 0.28, 1), "position": Vector2(780, -280), "radius": 250.0, "type": "rocky"}]
+warp_gates = [{"destination_sector_id": "ferrite_belt", "id": "gate_anchor_east", "locked": false, "position": Vector2(3800, 0), "unlock_requirement": ""}]
+anomaly_points = [{"id": "anomaly_anchor_data_cache", "position": Vector2(1120, -40), "type": "data_cache"}]
+resource_nodes = [{"id": "node_anchor_ore_01", "position": Vector2(520, -120), "resource_id": "common_ore", "tier": 1}, {"id": "node_anchor_ore_02", "position": Vector2(630, -10), "resource_id": "common_ore", "tier": 1}, {"id": "node_anchor_ore_03", "position": Vector2(760, 90), "resource_id": "common_ore", "tier": 1}, {"id": "node_anchor_ore_04", "position": Vector2(980, 30), "resource_id": "common_ore", "tier": 1}, {"id": "node_anchor_crystal_01", "position": Vector2(900, -180), "resource_id": "industrial_crystal", "tier": 1}, {"id": "node_anchor_crystal_02", "position": Vector2(1080, -260), "resource_id": "industrial_crystal", "tier": 1}]
+asteroid_fields = []
+hazard_zones = []
+loot_crates = [{ "hidden_until_scanned": true, "position": Vector2(1320, 210), "contents": [{ "item_type": "credits", "item_id": "", "quantity": 30 }] }]
+enemy_patrols = [{"archetypes": ["pirate_skirmisher", "pirate_skirmisher"], "center": Vector2(-2550, -2050), "id": "patrol_anchor_far", "radius": 420.0}]
+hazard_types = PackedStringArray()
+content_tags = PackedStringArray("starting_hub", "services", "safe", "resource_zones")

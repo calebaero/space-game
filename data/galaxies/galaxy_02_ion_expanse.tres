@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="GalaxyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/GalaxyDefinition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "galaxy_2"
+display_name = "Ion Expanse"
+sector_ids = PackedStringArray("relay_market", "storm_fields", "drone_foundry")
+unlock_requirement = "warp_stabilizer_mk1"

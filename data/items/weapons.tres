@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="WeaponCatalog" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/WeaponCatalog.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+weapons = [{"color": Color(0.7, 0.9, 1, 1), "damage": 8.0, "fire_rate": 0.2, "id": "pulse_laser", "is_homing": false, "name": "Pulse Laser", "projectile_speed": 800.0, "range": 900.0, "scale": 1.0}, {"color": Color(1, 0.45, 0.42, 1), "damage": 6.0, "fire_rate": 0.45, "id": "pirate_repeater", "is_homing": false, "name": "Pirate Repeater", "projectile_speed": 720.0, "range": 500.0, "scale": 1.0}, {"color": Color(1, 0.33, 0.3, 1), "damage": 14.0, "fire_rate": 0.95, "id": "pirate_bombard", "is_homing": false, "name": "Pirate Bombard", "projectile_speed": 650.0, "range": 560.0, "scale": 1.25}, {"color": Color(0.45, 0.9, 1, 1), "damage": 5.0, "fire_rate": 0.3, "id": "drone_pulse", "is_homing": false, "name": "Drone Pulse", "projectile_speed": 850.0, "range": 520.0, "scale": 0.9}, {"color": Color(0.55, 0.9, 1, 1), "damage": 7.0, "fire_rate": 0.42, "id": "drone_interceptor_emitter", "is_homing": false, "name": "Interceptor Emitter", "projectile_speed": 900.0, "range": 560.0, "scale": 1.0}]

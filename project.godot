@@ -1,0 +1,114 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="space-game"
+run/main_scene="res://scenes/main/MainMenu.tscn"
+config/features=PackedStringArray("4.6", "Forward Plus")
+config/icon="res://icon.svg"
+
+[autoload]
+
+ContentDatabase="*res://scripts/autoload/ContentDatabase.gd"
+GameStateManager="*res://scripts/autoload/GameStateManager.gd"
+SaveManager="*res://scripts/autoload/SaveManager.gd"
+MissionManager="*res://scripts/autoload/MissionManager.gd"
+EconomyManager="*res://scripts/autoload/EconomyManager.gd"
+GalaxyManager="*res://scripts/autoload/GalaxyManager.gd"
+SpawnManager="*res://scripts/autoload/SpawnManager.gd"
+AudioManager="*res://scripts/autoload/AudioManager.gd"
+UIManager="*res://scripts/autoload/UIManager.gd"
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[input]
+
+thrust={
+"deadzone": 0.5,
+"events": []
+}
+thrust_alt={
+"deadzone": 0.5,
+"events": []
+}
+brake={
+"deadzone": 0.5,
+"events": []
+}
+boost={
+"deadzone": 0.5,
+"events": []
+}
+rotate_left={
+"deadzone": 0.5,
+"events": []
+}
+rotate_right={
+"deadzone": 0.5,
+"events": []
+}
+interact={
+"deadzone": 0.5,
+"events": []
+}
+mine={
+"deadzone": 0.5,
+"events": []
+}
+scan={
+"deadzone": 0.5,
+"events": []
+}
+fire_primary={
+"deadzone": 0.5,
+"events": []
+}
+fire_secondary={
+"deadzone": 0.5,
+"events": []
+}
+utility_activate={
+"deadzone": 0.5,
+"events": []
+}
+cycle_weapon_1={
+"deadzone": 0.5,
+"events": []
+}
+cycle_weapon_2={
+"deadzone": 0.5,
+"events": []
+}
+cycle_target={
+"deadzone": 0.5,
+"events": []
+}
+map_toggle={
+"deadzone": 0.5,
+"events": []
+}
+pause={
+"deadzone": 0.5,
+"events": []
+}
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+rendering_device/driver.windows="d3d12"

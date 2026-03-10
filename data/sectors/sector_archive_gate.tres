@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SectorDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/SectorDefinition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "archive_gate"
+display_name = "Archive Gate"
+galaxy_id = "galaxy_3"
+connections = [{"required_unlock": "galaxy_3", "sector_id": "drone_foundry"}, {"required_unlock": "", "sector_id": "silent_orbit"}]
+threat_level = 7
+background_tint = Color(0.59, 0.49, 0.22, 1)
+station_data = {}
+planets = [{"color": Color(0.65, 0.56, 0.28, 1), "position": Vector2(1100, -900), "radius": 260.0, "type": "relic"}]
+warp_gates = [{"destination_sector_id": "drone_foundry", "id": "gate_archive_west", "locked": true, "position": Vector2(-3800, 40), "unlock_requirement": "galaxy_3"}, {"destination_sector_id": "silent_orbit", "id": "gate_archive_east", "locked": false, "position": Vector2(3800, -120), "unlock_requirement": ""}]
+anomaly_points = []
+hazard_types = PackedStringArray()
+content_tags = PackedStringArray("resource_zones", "enemy_patrols")

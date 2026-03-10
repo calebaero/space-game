@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SectorDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/SectorDefinition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "red_corsair_run"
+display_name = "Red Corsair Run"
+galaxy_id = "galaxy_1"
+connections = [{"required_unlock": "", "sector_id": "ferrite_belt"}, {"required_unlock": "galaxy_2", "sector_id": "relay_market"}]
+threat_level = 4
+background_tint = Color(0.29, 0.18, 0.23, 1)
+station_data = {}
+planets = [{"color": Color(0.68, 0.24, 0.24, 1), "position": Vector2(980, -340), "radius": 300.0, "type": "contested"}]
+warp_gates = [{"destination_sector_id": "ferrite_belt", "id": "gate_red_west", "locked": false, "position": Vector2(-3800, 0), "unlock_requirement": ""}, {"destination_sector_id": "relay_market", "id": "gate_red_east_locked", "locked": true, "position": Vector2(3800, 0), "unlock_requirement": "galaxy_2"}]
+anomaly_points = [{"id": "anomaly_red_distress", "position": Vector2(-680, 880), "type": "distress_signal"}, {"id": "anomaly_red_pirate_cache", "position": Vector2(1440, -1020), "type": "pirate_cache"}]
+resource_nodes = [{"id": "node_red_ore_01", "position": Vector2(-420, -560), "resource_id": "common_ore", "tier": 2}, {"id": "node_red_ore_02", "position": Vector2(260, -780), "resource_id": "common_ore", "tier": 2}, {"id": "node_red_gas_01", "position": Vector2(980, 640), "resource_id": "volatile_gas", "tier": 1}, {"id": "node_red_gas_02", "position": Vector2(1420, 300), "resource_id": "volatile_gas", "tier": 1}]
+asteroid_fields = []
+hazard_zones = [{"hazard_type": "radiation_cloud", "id": "hazard_red_radiation", "position": Vector2(420, 540), "radius": 860.0}, {"hazard_type": "debris_field", "id": "hazard_red_debris", "position": Vector2(-1180, 220), "radius": 640.0}]
+loot_crates = [{ "hidden_until_scanned": true, "position": Vector2(-1660, 820), "contents": [{ "item_type": "credits", "item_id": "", "quantity": 70 }, { "item_type": "resource", "item_id": "volatile_gas", "quantity": 1 }] }]
+enemy_patrols = [{"archetypes": ["pirate_skirmisher", "pirate_bomber"], "center": Vector2(-2380, -860), "id": "patrol_red_west", "radius": 520.0}, {"archetypes": ["pirate_skirmisher", "pirate_bomber", "pirate_skirmisher"], "center": Vector2(40, 1320), "id": "patrol_red_south", "radius": 560.0}, {"archetypes": ["pirate_bomber", "pirate_skirmisher"], "center": Vector2(2240, -540), "id": "patrol_red_east", "radius": 520.0}]
+hazard_types = PackedStringArray("radiation_cloud", "debris_field")
+content_tags = PackedStringArray("pirates", "enemy_patrols", "resource_zones")

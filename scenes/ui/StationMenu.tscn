@@ -1,0 +1,129 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/StationMenu.gd" id="1"]
+
+[node name="StationMenu" type="CanvasLayer"]
+visible = false
+script = ExtResource("1")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="Backdrop" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.78)
+
+[node name="CenterContainer" type="CenterContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="Panel" parent="Root/CenterContainer"]
+custom_minimum_size = Vector2(980, 620)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Root/CenterContainer/Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 28.0
+offset_top = 24.0
+offset_right = -28.0
+offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 14
+
+[node name="Header" type="HBoxContainer" parent="Root/CenterContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="StationNameLabel" type="Label" parent="Root/CenterContainer/Panel/VBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Station Name"
+
+[node name="EconomyLabel" type="Label" parent="Root/CenterContainer/Panel/VBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Economy: Frontier"
+
+[node name="TabsTitle" type="Label" parent="Root/CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "Station Tabs (Placeholder)"
+
+[node name="TabsGrid" type="GridContainer" parent="Root/CenterContainer/Panel/VBox"]
+layout_mode = 2
+columns = 4
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 10
+
+[node name="MissionsTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+layout_mode = 2
+text = "Missions"
+
+[node name="MarketTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+layout_mode = 2
+text = "Market"
+
+[node name="RefineryTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+layout_mode = 2
+text = "Refinery"
+
+[node name="WorkshopTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+layout_mode = 2
+text = "Workshop"
+
+[node name="UpgradesTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+layout_mode = 2
+text = "Upgrades"
+
+[node name="RepairTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+layout_mode = 2
+text = "Repair"
+
+[node name="GalaxyMapTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+layout_mode = 2
+text = "Galaxy Map"
+
+[node name="UndockTab" type="Label" parent="Root/CenterContainer/Panel/VBox/TabsGrid"]
+layout_mode = 2
+text = "Undock"
+
+[node name="CargoDivider" type="HSeparator" parent="Root/CenterContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="CargoHeader" type="Label" parent="Root/CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "Cargo Manifest"
+
+[node name="CargoScroll" type="ScrollContainer" parent="Root/CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 220)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CargoListVBox" type="VBoxContainer" parent="Root/CenterContainer/Panel/VBox/CargoScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="UndockButton" type="Button" parent="Root/CenterContainer/Panel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Undock"

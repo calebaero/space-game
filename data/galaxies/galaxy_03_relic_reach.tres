@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="GalaxyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/GalaxyDefinition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "galaxy_3"
+display_name = "Relic Reach"
+sector_ids = PackedStringArray("archive_gate", "silent_orbit", "core_bastion")
+unlock_requirement = "long_range_warp_drive"

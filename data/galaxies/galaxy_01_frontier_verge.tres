@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="GalaxyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/GalaxyDefinition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "galaxy_1"
+display_name = "Frontier Verge"
+sector_ids = PackedStringArray("anchor_station", "ferrite_belt", "red_corsair_run")
+unlock_requirement = "start"

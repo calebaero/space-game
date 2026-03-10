@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SectorDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/SectorDefinition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "core_bastion"
+display_name = "Core Bastion"
+galaxy_id = "galaxy_3"
+connections = [{"required_unlock": "", "sector_id": "silent_orbit"}]
+threat_level = 10
+background_tint = Color(0.66, 0.56, 0.26, 1)
+station_data = {}
+planets = [{"color": Color(0.74, 0.61, 0.27, 1), "position": Vector2(420, 480), "radius": 320.0, "type": "bastion"}]
+warp_gates = [{"destination_sector_id": "silent_orbit", "id": "gate_core_west", "locked": false, "position": Vector2(-3800, 0), "unlock_requirement": ""}]
+anomaly_points = []
+hazard_types = PackedStringArray()
+content_tags = PackedStringArray("enemy_patrols")
