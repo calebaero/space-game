@@ -51,7 +51,10 @@ func configure(ship: EnemyShip, archetype_data: Dictionary, spawn_origin: Vector
 	_preferred_range = float(archetype_data.get("preferred_range", _preferred_range))
 	_patrol_speed_factor = float(archetype_data.get("patrol_speed_factor", _patrol_speed_factor))
 	_fight_to_death = bool(archetype_data.get("fight_to_death", false))
-	_aggro_range *= 1.15
+	_aggro_range *= 1.55
+	_leash_range *= 1.45
+	_aggro_range = maxf(_aggro_range, 900.0)
+	_leash_range = maxf(_leash_range, _aggro_range + 900.0)
 
 	_build_patrol_points()
 	_change_state(AIState.PATROL)
@@ -78,7 +81,7 @@ func _physics_process(delta: float) -> void:
 	var distance_from_spawn: float = _ship.global_position.distance_to(_spawn_origin)
 	var hull_ratio: float = _ship.get_hull_ratio()
 
-	if _state != AIState.LEASH_RETURN and _state != AIState.FLEE and distance_from_spawn > _leash_range:
+	if _state != AIState.LEASH_RETURN and _state != AIState.FLEE and _should_break_off(distance_from_spawn, distance_to_player):
 		_change_state(AIState.LEASH_RETURN)
 
 	if hull_ratio < 0.2 and not _fight_to_death and _state != AIState.FLEE:
@@ -92,7 +95,7 @@ func _physics_process(delta: float) -> void:
 			else:
 				_run_patrol_behavior()
 		AIState.ALERT:
-			if distance_to_player > _aggro_range * 1.45:
+			if distance_to_player > _aggro_range * 2.2:
 				_change_state(AIState.PATROL)
 				_run_patrol_behavior()
 			elif _state_elapsed >= alert_duration:
@@ -101,7 +104,7 @@ func _physics_process(delta: float) -> void:
 			else:
 				_run_alert_behavior()
 		AIState.CHASE:
-			if distance_from_spawn > _leash_range:
+			if _should_break_off(distance_from_spawn, distance_to_player):
 				_change_state(AIState.LEASH_RETURN)
 				_run_leash_return_behavior()
 			elif distance_to_player <= _preferred_range + attack_range_tolerance:
@@ -110,7 +113,7 @@ func _physics_process(delta: float) -> void:
 			else:
 				_run_chase_behavior(distance_to_player)
 		AIState.ATTACK:
-			if distance_from_spawn > _leash_range:
+			if _should_break_off(distance_from_spawn, distance_to_player):
 				_change_state(AIState.LEASH_RETURN)
 				_run_leash_return_behavior()
 			elif distance_to_player > _preferred_range + attack_range_tolerance * 1.8:
@@ -119,13 +122,16 @@ func _physics_process(delta: float) -> void:
 			else:
 				_run_attack_behavior(to_player, distance_to_player)
 		AIState.FLEE:
-			if distance_from_spawn > _leash_range * 1.2 or distance_to_player > _aggro_range * 1.8:
+			if distance_from_spawn > _leash_range * 1.25 or distance_to_player > _aggro_range * 2.2:
 				_change_state(AIState.LEASH_RETURN)
 				_run_leash_return_behavior()
 			else:
 				_run_flee_behavior()
 		AIState.LEASH_RETURN:
-			if distance_from_spawn <= 90.0:
+			if distance_to_player <= _aggro_range * 0.9:
+				_change_state(AIState.ALERT)
+				_run_alert_behavior()
+			elif distance_from_spawn <= 90.0:
 				_change_state(AIState.PATROL)
 				lost_interest.emit()
 				_run_patrol_behavior()
@@ -157,7 +163,8 @@ func _run_patrol_behavior() -> void:
 func _run_alert_behavior() -> void:
 	if _player_ship == null:
 		return
-	_ship.set_ai_command(_player_ship.global_position, 0.55, 0.0, false, false)
+	var player_position: Vector2 = _player_ship.global_position
+	_ship.set_ai_command(player_position, 0.62, 0.0, false, false, player_position)
 
 
 func _run_chase_behavior(distance_to_player: float) -> void:
@@ -165,9 +172,11 @@ func _run_chase_behavior(distance_to_player: float) -> void:
 		return
 
 	var intercept_target: Vector2 = _player_ship.global_position
+	var aim_target: Vector2 = _player_ship.global_position
 	if _player_ship.has_method("get_velocity_vector"):
 		var target_velocity: Vector2 = _player_ship.call("get_velocity_vector")
 		intercept_target += target_velocity * 0.35
+		aim_target += target_velocity * 0.18
 
 	var throttle: float = 1.0
 	if distance_to_player < _preferred_range * 0.95:
@@ -176,8 +185,8 @@ func _run_chase_behavior(distance_to_player: float) -> void:
 	if _behavior == "flanker" or _behavior == "interceptor":
 		var strafe_sign: float = 1.0 if int(Time.get_ticks_msec() / 800) % 2 == 0 else -1.0
 		chase_strafe = 0.18 * strafe_sign
-	var can_fire: bool = distance_to_player <= _ship.get_weapon_range() * 0.95
-	_ship.set_ai_command(intercept_target, throttle, chase_strafe, can_fire, false)
+	var can_fire: bool = distance_to_player <= _ship.get_weapon_range() * 1.1
+	_ship.set_ai_command(intercept_target, throttle, chase_strafe, can_fire, false, aim_target)
 
 
 func _run_attack_behavior(to_player: Vector2, distance_to_player: float) -> void:
@@ -185,6 +194,11 @@ func _run_attack_behavior(to_player: Vector2, distance_to_player: float) -> void
 		return
 
 	var player_position: Vector2 = _player_ship.global_position
+	var aim_target: Vector2 = player_position
+	if _player_ship.has_method("get_velocity_vector"):
+		var player_velocity: Vector2 = _player_ship.call("get_velocity_vector")
+		aim_target += player_velocity * 0.2
+
 	var orbit_sign: float = 1.0 if int(Time.get_ticks_msec() / 900) % 2 == 0 else -1.0
 	var strafe: float = 0.45 * orbit_sign
 	if _behavior == "bomber":
@@ -196,14 +210,20 @@ func _run_attack_behavior(to_player: Vector2, distance_to_player: float) -> void
 	if distance_to_player > _preferred_range:
 		desired_position = player_position - to_player.normalized() * _preferred_range
 	else:
-		desired_position = _ship.global_position + to_player.orthogonal().normalized() * _preferred_range * 0.2
+		var orbit_basis: Vector2 = to_player.normalized()
+		if orbit_basis.length_squared() <= 0.0001:
+			orbit_basis = Vector2.RIGHT
+		var orbit_direction: Vector2 = orbit_basis.rotated(orbit_sign * 0.9)
+		desired_position = player_position + orbit_direction * _preferred_range
 
 	var throttle: float = 0.72
 	if distance_to_player < _preferred_range * 0.75:
-		throttle = 0.2
+		throttle = 0.48
+	elif distance_to_player > _preferred_range * 1.2:
+		throttle = 0.92
 
 	var can_fire: bool = distance_to_player <= _ship.get_weapon_range() * 1.05
-	_ship.set_ai_command(desired_position, throttle, strafe, can_fire, false)
+	_ship.set_ai_command(desired_position, throttle, strafe, can_fire, false, aim_target)
 
 
 func _run_flee_behavior() -> void:
@@ -217,7 +237,18 @@ func _run_flee_behavior() -> void:
 
 
 func _run_leash_return_behavior() -> void:
-	_ship.set_ai_command(_spawn_origin, 0.85, 0.0, false, false)
+	var distance_to_spawn: float = _ship.global_position.distance_to(_spawn_origin)
+	var use_boost: bool = distance_to_spawn > _leash_range * 1.05
+	_ship.set_ai_command(_spawn_origin, 0.95, 0.0, false, use_boost, _spawn_origin)
+
+
+func _should_break_off(distance_from_spawn: float, distance_to_player: float) -> bool:
+	if distance_from_spawn <= _leash_range:
+		return false
+	if distance_from_spawn > _leash_range * 1.45:
+		return true
+	var keep_fighting_radius: float = maxf(_preferred_range * 1.8, 560.0)
+	return distance_to_player > keep_fighting_radius
 
 
 func _build_patrol_points() -> void:

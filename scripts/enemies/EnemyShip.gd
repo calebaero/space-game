@@ -14,6 +14,7 @@ const LOOT_CRATE_SCENE: PackedScene = preload("res://scenes/world/LootCrate.tscn
 @export var linear_damp: float = 0.1
 @export var strafe_acceleration_ratio: float = 0.45
 @export var boost_speed_multiplier: float = 1.2
+@export var weapon_range_multiplier: float = 1.9
 
 @onready var hull_polygon: Polygon2D = %HullPolygon
 @onready var accent_polygon: Polygon2D = %AccentPolygon
@@ -40,6 +41,8 @@ var _fire_cooldown_remaining: float = 0.0
 var _death_handled: bool = false
 var _command_target_position: Vector2 = Vector2.ZERO
 var _has_command_target: bool = false
+var _aim_target_position: Vector2 = Vector2.ZERO
+var _has_aim_target: bool = false
 
 var _spawn_origin: Vector2 = Vector2.ZERO
 var _player_ship: Node2D = null
@@ -95,10 +98,20 @@ func set_player_ship(player_ship: Node2D) -> void:
 	ai_controller.set_player_ship(player_ship)
 
 
-func set_ai_command(target_position: Vector2, thrust: float, strafe: float, fire_primary: bool, boost: bool) -> void:
-	_desired_angle = (target_position - global_position).angle()
+func set_ai_command(target_position: Vector2, thrust: float, strafe: float, fire_primary: bool, boost: bool, aim_position: Variant = null) -> void:
 	_command_target_position = target_position
 	_has_command_target = true
+	if aim_position is Vector2:
+		_has_aim_target = true
+		_aim_target_position = aim_position as Vector2
+	else:
+		_has_aim_target = false
+		_aim_target_position = target_position
+
+	var facing_vector: Vector2 = _aim_target_position - global_position
+	if facing_vector.length_squared() > 0.0001:
+		_desired_angle = facing_vector.angle()
+
 	_thrust_intent = clampf(thrust, 0.0, 1.0)
 	_strafe_intent = clampf(strafe, -1.0, 1.0)
 	_fire_intent = fire_primary
@@ -115,7 +128,7 @@ func set_targeted(is_targeted: bool) -> void:
 func get_weapon_range() -> float:
 	if _weapon_data.is_empty():
 		return 480.0
-	return float(_weapon_data.get("range", 480.0))
+	return float(_weapon_data.get("range", 480.0)) * weapon_range_multiplier
 
 
 func get_display_name() -> String:
@@ -184,20 +197,26 @@ func _physics_process(delta: float) -> void:
 
 func _update_rotation(delta: float) -> void:
 	var angle_error: float = wrapf(_desired_angle - rotation, -PI, PI)
-	var steering_input: float = clampf(angle_error / PI, -1.0, 1.0)
-	_angular_velocity += steering_input * angular_acceleration * 1.25 * delta
-	_angular_velocity = move_toward(_angular_velocity, 0.0, angular_drag * delta)
-	var max_turn_rate: float = maxf(angular_acceleration * 0.75, 2.8)
-	_angular_velocity = clampf(_angular_velocity, -max_turn_rate, max_turn_rate)
+	var max_turn_rate: float = maxf(angular_acceleration * 1.35, 5.8)
+	var desired_turn_rate: float = clampf(angle_error * 3.2, -max_turn_rate, max_turn_rate)
+	var turn_response: float = angular_acceleration * (1.8 + minf(absf(angle_error), 1.2))
+	_angular_velocity = move_toward(_angular_velocity, desired_turn_rate, turn_response * delta)
+
+	var settling_drag: float = angular_drag
+	if absf(angle_error) < 0.3:
+		settling_drag *= 2.2
+	elif absf(angle_error) < 0.7:
+		settling_drag *= 1.4
+	_angular_velocity = move_toward(_angular_velocity, 0.0, settling_drag * delta)
 	rotation += _angular_velocity * delta
 
 
 func _apply_movement(delta: float) -> void:
 	var forward: Vector2 = Vector2.RIGHT.rotated(rotation)
 	var angle_error: float = absf(wrapf(_desired_angle - rotation, -PI, PI))
-	var heading_multiplier: float = clampf(1.0 - (angle_error / PI) * 0.75, 0.22, 1.0)
-	if angle_error > 2.2:
-		heading_multiplier = 0.08
+	var heading_multiplier: float = clampf(1.0 - (angle_error / PI) * 0.45, 0.5, 1.0)
+	if angle_error > 2.3:
+		heading_multiplier = 0.35
 
 	if _thrust_intent > 0.0:
 		var boost_mult: float = boost_speed_multiplier if _boost_intent else 1.0
@@ -207,11 +226,19 @@ func _apply_movement(delta: float) -> void:
 		var strafe_direction: Vector2 = forward.rotated(signf(_strafe_intent) * PI * 0.5)
 		velocity += strafe_direction * thrust_force * strafe_acceleration_ratio * absf(_strafe_intent) * delta
 
-	if _has_command_target:
+	var should_arrival_brake: bool = _has_command_target and not _fire_intent and absf(_strafe_intent) < 0.12
+	if should_arrival_brake:
 		var distance_to_target: float = global_position.distance_to(_command_target_position)
-		if distance_to_target < 220.0:
-			var braking_factor: float = 1.0 + ((220.0 - distance_to_target) / 220.0)
-			velocity = velocity.move_toward(Vector2.ZERO, thrust_force * 0.65 * braking_factor * delta)
+		if distance_to_target < 180.0:
+			var braking_factor: float = 0.65 + ((180.0 - distance_to_target) / 180.0) * 1.1
+			velocity = velocity.move_toward(Vector2.ZERO, thrust_force * 0.6 * braking_factor * delta)
+
+	if velocity.length() > 80.0 and angle_error > 0.45:
+		var lateral_axis: Vector2 = forward.orthogonal()
+		var lateral_speed: float = velocity.dot(lateral_axis)
+		var correction_ratio: float = clampf((angle_error - 0.45) / 1.5, 0.0, 1.0)
+		var correction_step: float = minf(delta * (2.2 + correction_ratio * 2.0), 0.42)
+		velocity -= lateral_axis * lateral_speed * correction_step
 
 	velocity *= maxf(0.0, 1.0 - (linear_damp * delta))
 
@@ -253,12 +280,21 @@ func _try_fire_projectile() -> void:
 		return
 
 	var forward: Vector2 = Vector2.RIGHT.rotated(rotation)
+	if _has_aim_target:
+		var to_aim_target: Vector2 = _aim_target_position - global_position
+		if to_aim_target.length_squared() > 0.001:
+			var aim_direction: Vector2 = to_aim_target.normalized()
+			var aim_error: float = absf(forward.angle_to(aim_direction))
+			if aim_error > deg_to_rad(38.0):
+				return
+			forward = aim_direction
+
 	projectile.global_position = global_position + forward * 26.0
 	get_parent().add_child(projectile)
 	projectile.configure({
 		"damage": float(_weapon_data.get("damage", 6.0)),
 		"speed": float(_weapon_data.get("projectile_speed", 720.0)),
-		"range": float(_weapon_data.get("range", 500.0)),
+		"range": get_weapon_range(),
 		"is_homing": bool(_weapon_data.get("is_homing", false)),
 		"owner": "enemy",
 		"source": self,

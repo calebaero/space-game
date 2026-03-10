@@ -15,7 +15,7 @@ const DEFAULT_PLAYER_STATS: Dictionary = {
 	"hull": 100.0,
 	"shield": 50.0,
 	"thrust": 300.0,
-	"max_speed": 400.0,
+	"max_speed": 360.0,
 	"turn_speed": 4.6,
 	"boost_strength": 2.5,
 	"power_capacity": 60.0,

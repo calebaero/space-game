@@ -10,9 +10,9 @@ const PROJECTILE_SCENE: PackedScene = preload("res://scenes/world/Projectile.tsc
 
 @export_group("Flight Base")
 @export var thrust_force: float = 300.0
-@export var max_speed: float = 400.0
-@export var angular_acceleration: float = 8.0
-@export var angular_drag: float = 4.0
+@export var max_speed: float = 360.0
+@export var angular_acceleration: float = 8.4
+@export var angular_drag: float = 6.2
 @export var rotational_assist_torque: float = 7.5
 @export var linear_damp: float = 0.1
 @export var brake_multiplier: float = 0.8
@@ -20,7 +20,7 @@ const PROJECTILE_SCENE: PackedScene = preload("res://scenes/world/Projectile.tsc
 
 @export_group("Boost")
 @export var boost_multiplier: float = 2.5
-@export var boost_max_speed_bonus: float = 0.5
+@export var boost_max_speed_bonus: float = 0.35
 @export var boost_duration: float = 2.0
 @export var boost_cooldown: float = 5.0
 @export var boost_cost: float = 40.0
@@ -316,23 +316,52 @@ func _update_rotation(delta: float) -> void:
 	var steering_input: float = clampf(angle_error / PI, -1.0, 1.0)
 	var manual_torque: float = Input.get_action_strength("rotate_right") - Input.get_action_strength("rotate_left")
 
-	angular_velocity += steering_input * angular_acceleration * effective_turn_speed * 1.35 * delta
-	angular_velocity += manual_torque * rotational_assist_torque * delta
-	angular_velocity = move_toward(angular_velocity, 0.0, angular_drag * delta)
-	var max_turn_rate: float = maxf(effective_turn_speed * 2.8, 4.2)
-	angular_velocity = clampf(angular_velocity, -max_turn_rate, max_turn_rate)
+	var max_turn_rate: float = maxf(effective_turn_speed * 4.0, 6.8)
+	var desired_turn_rate: float = clampf(angle_error * effective_turn_speed * 2.9, -max_turn_rate, max_turn_rate)
+	desired_turn_rate += manual_torque * rotational_assist_torque
+
+	var turn_response: float = angular_acceleration * effective_turn_speed * (1.0 + absf(steering_input) * 0.65)
+	angular_velocity = move_toward(
+		angular_velocity,
+		desired_turn_rate,
+		turn_response * delta
+	)
+
+	var settling_drag: float = angular_drag
+	if absf(angle_error) < 0.35:
+		settling_drag *= 2.4
+	elif absf(angle_error) < 0.8:
+		settling_drag *= 1.5
+	angular_velocity = move_toward(angular_velocity, 0.0, settling_drag * delta)
 	rotation += angular_velocity * delta
 
 
 func _apply_linear_forces(delta: float) -> void:
 	var effective_thrust: float = _get_effective_thrust()
 	var forward_direction: Vector2 = Vector2.RIGHT.rotated(rotation)
+	var steering_angle_error: float = absf(wrapf((get_global_mouse_position() - global_position).angle() - rotation, -PI, PI))
+	var turn_thrust_scale: float = 1.0
+	if steering_angle_error > 0.65:
+		turn_thrust_scale = clampf(1.0 - ((steering_angle_error - 0.65) * 0.62), 0.4, 1.0)
 
 	if Input.is_action_pressed("thrust") or Input.is_action_pressed("thrust_alt"):
-		velocity += forward_direction * effective_thrust * _get_boost_multiplier() * delta
+		velocity += forward_direction * effective_thrust * _get_boost_multiplier() * turn_thrust_scale * delta
 
 	if Input.is_action_pressed("brake") and velocity.length() > 0.001:
 		velocity += -velocity.normalized() * effective_thrust * brake_multiplier * delta
+
+	if velocity.length() > 70.0 and steering_angle_error > 0.35:
+		var lateral_axis: Vector2 = forward_direction.orthogonal()
+		var lateral_speed: float = velocity.dot(lateral_axis)
+		var correction_strength: float = clampf((steering_angle_error - 0.35) / 1.5, 0.0, 1.0)
+		var correction_step: float = minf(delta * (2.6 + correction_strength * 2.8), 0.5)
+		velocity -= lateral_axis * lateral_speed * correction_step
+
+		if (Input.is_action_pressed("thrust") or Input.is_action_pressed("thrust_alt")) and steering_angle_error > 1.0:
+			var current_max_speed: float = _get_current_max_speed()
+			if velocity.length() > current_max_speed * 0.45:
+				var pivot_brake: float = clampf((steering_angle_error - 1.0) / 1.4, 0.0, 1.0)
+				velocity += -velocity.normalized() * effective_thrust * 0.2 * pivot_brake * delta
 
 	var current_linear_damp: float = _get_current_linear_damp()
 	velocity *= maxf(0.0, 1.0 - (current_linear_damp * delta))
