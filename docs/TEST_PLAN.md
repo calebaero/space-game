@@ -1,5 +1,45 @@
 # Test Plan — Space Explorer
 
+## Phase 09 Final Verification Checklist
+
+### Integration + Audit
+1. Launch with `godot4 --headless --path . --quit` and confirm no parser errors.
+2. Launch from editor and confirm no missing script/resource warnings on startup.
+3. From Main Menu, open `About` and verify:
+   - `Space Explorer v1.0` title
+   - `Built with Godot 4.x` subtitle
+   - credits text visible and readable
+   - `Back` closes the panel.
+
+### Economy + Progression Targets
+1. Start fresh save, mine `Common Ore` until cargo reaches 20 units, dock at Anchor Station, and sell.
+2. Confirm payout lands roughly in the target range (`~80–150 credits`) depending on station variance.
+3. Complete several G1 contracts and confirm reward payouts remain in expected `100–300` band.
+4. Verify Mk I upgrades are reachable after a small number of starter runs (mining/contracts).
+5. Verify no progression dead-end exists: player can always mine/sell for credits/materials.
+
+### Combat Targets
+1. Fight G1 Pirate Skirmisher with default Pulse Laser and confirm expected TTK (`~3–5` landed hits).
+2. Fight G1 Pirate Bomber and confirm expected TTK (`~6–10` landed hits).
+3. Verify enemy patrol/aggro still works after balance tuning (no passive drift-only behavior regressions).
+
+### Save/Load Edge Cases
+1. Save while docked at each available station and reload each slot.
+2. Die, respawn, save immediately, then reload and verify:
+   - player spawns safely at last docked station
+   - wreck beacon state persists
+   - cargo/credits/death penalty remain consistent.
+3. Save/load with active missions at partial progress and verify objective counters persist.
+4. Save/load with full cargo and verify exact quantities persist.
+5. Save/load before and after galaxy unlocks and verify gate lock states remain correct.
+
+### Campaign Readiness
+1. Start a fresh run and verify tutorial prompt appears on new game load.
+2. Verify core loop remains intact end-to-end:
+   - mine -> collect -> dock -> sell/refine/craft -> upgrade/equip -> warp progression.
+3. Verify all 9 sectors are reachable via intended progression.
+4. Confirm post-final-boss state remains playable (post-game contracts and free roam).
+
 ## Phase 01 Manual Checklist
 
 1. Launch the project.

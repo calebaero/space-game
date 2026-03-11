@@ -1189,8 +1189,12 @@ func _build_contract_offer(template: Dictionary, station_data: Dictionary) -> Di
 	var progression_scale: float = _get_progression_difficulty_scale()
 	var base_reward: int = _rng.randi_range(reward_range.x, reward_range.y)
 	var reward_credits: int = int(round(float(base_reward) * reward_scale * progression_scale))
+	var reward_floor: int = reward_range.x
+	var reward_ceiling: int = reward_range.y
 	if get_story_flag(&"game_complete"):
 		reward_credits = int(round(float(reward_credits) * 1.25))
+		reward_ceiling = int(round(float(reward_ceiling) * 1.25))
+	reward_credits = clampi(reward_credits, reward_floor, max(reward_ceiling, reward_floor))
 
 	var mission: Dictionary = {
 		"id": _generate_mission_instance_id(template_id),

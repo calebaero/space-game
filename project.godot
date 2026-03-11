@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="space-game"
+config/name="Space Explorer"
 run/main_scene="res://scenes/main/MainMenu.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
@@ -108,6 +108,7 @@ pause={
 [physics]
 
 3d/physics_engine="Jolt Physics"
+common/physics_ticks_per_second=60
 
 [rendering]
 

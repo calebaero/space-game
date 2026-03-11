@@ -967,7 +967,18 @@ func _apply_upgrade_bonus(stat_key: String, base_value: float) -> float:
 		var bonus_value: float = float(tier_data.get("bonus_value", 0.0))
 		match bonus_mode:
 			"add":
-				adjusted = base_value + bonus_value
+				# Additive upgrade tracks are cumulative across purchased tiers.
+				var additive_total: float = 0.0
+				var tier_limit: int = min(tier, tiers.size())
+				for tier_index in range(tier_limit):
+					var prior_tier_variant: Variant = tiers[tier_index]
+					if prior_tier_variant is not Dictionary:
+						continue
+					var prior_tier_data: Dictionary = prior_tier_variant
+					if String(prior_tier_data.get("bonus_mode", "add")) != "add":
+						continue
+					additive_total += float(prior_tier_data.get("bonus_value", 0.0))
+				adjusted = base_value + additive_total
 			"mul":
 				adjusted = base_value * (1.0 + bonus_value)
 			"set":

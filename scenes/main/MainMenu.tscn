@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/core/MainMenu.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/MainMenuStarfield.gd" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/ui/SettingsMenu.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/ui/AboutScreen.tscn" id="4"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -64,7 +65,7 @@ horizontal_alignment = 1
 
 [node name="SubtitleLabel" type="Label" parent="CenterContainer/Panel/VBoxContainer"]
 layout_mode = 2
-text = "Phase 08 Stability Shell"
+text = "Phase 09 Integration Shell"
 horizontal_alignment = 1
 
 [node name="Spacer" type="Control" parent="CenterContainer/Panel/VBoxContainer"]
@@ -86,10 +87,18 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Settings"
 
+[node name="AboutButton" type="Button" parent="CenterContainer/Panel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "About"
+
 [node name="QuitButton" type="Button" parent="CenterContainer/Panel/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Quit"
 
 [node name="SettingsMenu" parent="." instance=ExtResource("3")]
+unique_name_in_owner = true
+
+[node name="AboutScreen" parent="." instance=ExtResource("4")]
 unique_name_in_owner = true

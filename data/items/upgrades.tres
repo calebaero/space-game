@@ -28,13 +28,13 @@ paths = [{
 "description": "Increase max hull by 60."
 }, {
 "bonus_mode": "add",
-"bonus_value": 100.0,
+"bonus_value": 110.0,
 "cost_credits": 2000,
 "cost_items": [{
 "item_id": "weapon_components",
 "quantity": 2
 }],
-"description": "Increase max hull by 100."
+"description": "Increase max hull by 110."
 }]
 }, {
 "id": "shield_generator",
@@ -60,13 +60,13 @@ paths = [{
 "description": "Increase max shield by 40."
 }, {
 "bonus_mode": "add",
-"bonus_value": 70.0,
+"bonus_value": 60.0,
 "cost_credits": 2200,
 "cost_items": [{
 "item_id": "warp_components",
 "quantity": 1
 }],
-"description": "Increase max shield by 70."
+"description": "Increase max shield by 60."
 }]
 }, {
 "id": "engine_thruster",

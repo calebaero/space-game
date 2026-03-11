@@ -1,5 +1,25 @@
 # Changelog — Space Explorer
 
+## Phase 09
+- Performed project-wide integration audit and reference validation:
+  - verified runtime references across `scenes/`, `scripts/`, and `data/` (no missing `res://` links).
+  - validated headless startup (`godot4 --headless --path . --quit`) to catch parser/runtime init regressions.
+- Finalized project configuration for V1 handoff readiness:
+  - updated project/application name to `Space Explorer`.
+  - explicitly pinned physics tick rate to `60` in `project.godot`.
+- Added main menu credits/about flow:
+  - new reusable `AboutScreen` overlay (`Space Explorer v1.0`, Godot attribution, placeholder credits text).
+  - wired `MainMenu` with a dedicated `About` button and close flow.
+- Tuned progression/balance hotspots with surgical data/code updates:
+  - calibrated `Common Ore` base value for target G1 mining-run credit range alignment.
+  - tuned G1 pirate survivability targets (`Pirate Skirmisher` and `Pirate Bomber`) toward desired pulse-laser hit counts.
+  - adjusted upgrade progression math to support final target endgame stats.
+  - clamped generated contract rewards to configured galaxy reward bands to avoid out-of-band payouts.
+- Updated phase shell labels to Phase 09 integration text in menu/sector debug UI.
+- Added final handoff documentation:
+  - new root `README.md` (run instructions, controls, save/settings paths, concise extension guide).
+  - new `docs/EXPORT_NOTES.md` with practical PC export checklist and preset setup notes.
+
 ## Phase 08
 - Implemented full save/load backbone in `SaveManager` with slot files and metadata:
   - 3 slot support (`user://saves/slot_1.json` .. `slot_3.json`)
