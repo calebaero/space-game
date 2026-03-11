@@ -1,0 +1,339 @@
+[gd_resource type="Resource" script_class="MissionCatalog" format=3]
+
+[ext_resource type="Script" path="res://scripts/core/MissionCatalog.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+templates = Array[Dictionary]([{
+"auto_turn_in": false,
+"description": "Fly to the calibration beacon and return to Anchor Station.",
+"id": "story_first_steps",
+"is_story": true,
+"next_id": "story_supply_run",
+"objectives": [{
+"current": 0,
+"id": "first_steps_reach_beacon",
+"radius": 180.0,
+"required": 1,
+"sector_id": "anchor_station",
+"target": "first_steps_beacon",
+"type": "reach_point",
+"world_position": Vector2(1480, -280)
+}, {
+"current": 0,
+"id": "first_steps_return",
+"required": 1,
+"target": "station_anchor_prime",
+"type": "dock_station"
+}],
+"order": 1,
+"rewards": {
+"credits": 100,
+"flags": ["story_first_steps_complete"],
+"items": [],
+"materials": {}
+},
+"source_station_id": "station_anchor_prime",
+"title": "First Steps",
+"turn_in_station_id": "station_anchor_prime"
+}, {
+"auto_turn_in": false,
+"description": "Mine 10 Common Ore and sell it at Anchor Station.",
+"id": "story_supply_run",
+"is_story": true,
+"next_id": "story_missing_survey_team",
+"objectives": [{
+"current": 0,
+"id": "supply_collect_ore",
+"required": 10,
+"sector_id": "anchor_station",
+"target": "common_ore",
+"type": "collect_item"
+}, {
+"current": 0,
+"id": "supply_sell_ore",
+"required": 10,
+"station_id": "station_anchor_prime",
+"target": "common_ore",
+"type": "sell_item"
+}],
+"order": 2,
+"rewards": {
+"credits": 200,
+"flags": ["story_supply_run_complete", "refinery_tutorial_unlocked"],
+"items": [],
+"materials": {}
+},
+"source_station_id": "station_anchor_prime",
+"title": "Supply Run",
+"turn_in_station_id": "station_anchor_prime"
+}, {
+"auto_turn_in": false,
+"description": "Travel to Ferrite Belt, scan the distress beacon, and survive the pirate ambush.",
+"id": "story_missing_survey_team",
+"is_story": true,
+"next_id": "story_pirate_stronghold",
+"objectives": [{
+"current": 0,
+"id": "survey_reach_ferrite",
+"required": 1,
+"sector_id": "ferrite_belt",
+"target": "ferrite_belt",
+"type": "reach_sector"
+}, {
+"current": 0,
+"id": "survey_scan_beacon",
+"required": 1,
+"sector_id": "ferrite_belt",
+"target": "anomaly_story_survey",
+"type": "scan_anomaly"
+}, {
+"current": 0,
+"faction": "pirate",
+"id": "survey_defeat_ambush",
+"required": 2,
+"sector_id": "ferrite_belt",
+"target": "pirate_skirmisher",
+"type": "destroy_enemy"
+}],
+"order": 3,
+"rewards": {
+"credits": 300,
+"flags": ["story_missing_survey_complete"],
+"items": [{
+"item_id": "survey_intel",
+"quantity": 1
+}],
+"materials": {}
+},
+"source_station_id": "station_anchor_prime",
+"title": "Missing Survey Team",
+"turn_in_station_id": "station_anchor_prime"
+}, {
+"auto_turn_in": false,
+"description": "Defeat pirate patrols in Red Corsair Run and destroy the Pirate Gunship Captain.",
+"id": "story_pirate_stronghold",
+"is_story": true,
+"next_id": "story_new_frontier",
+"objectives": [{
+"current": 0,
+"id": "pirate_reach_sector",
+"required": 1,
+"sector_id": "red_corsair_run",
+"target": "red_corsair_run",
+"type": "reach_sector"
+}, {
+"current": 0,
+"faction": "pirate",
+"id": "pirate_clear_patrols",
+"match_mode": "faction",
+"required": 6,
+"sector_id": "red_corsair_run",
+"target": "pirate",
+"type": "destroy_enemy"
+}, {
+"boss_spawn": true,
+"current": 0,
+"id": "pirate_boss",
+"required": 1,
+"requires_objective_complete": "pirate_clear_patrols",
+"sector_id": "red_corsair_run",
+"target": "pirate_gunship_captain",
+"type": "defeat_boss"
+}],
+"order": 4,
+"rewards": {
+"credits": 800,
+"flags": ["story_pirate_stronghold_complete", "blueprint_craft_warp_stabilizer_mk1"],
+"items": [{
+"item_id": "relic_component",
+"quantity": 1
+}],
+"materials": {}
+},
+"source_station_id": "station_anchor_prime",
+"title": "Pirate Stronghold",
+"turn_in_station_id": "station_anchor_prime"
+}, {
+"auto_turn_in": false,
+"description": "Buy Medical Supplies at Relay Market and deliver them to Stormwatch Outpost.",
+"id": "story_new_frontier",
+"is_story": true,
+"next_id": "story_storm_chaser",
+"objectives": [{
+"current": 0,
+"id": "frontier_dock_relay",
+"required": 1,
+"target": "station_relay_exchange",
+"type": "dock_station"
+}, {
+"current": 0,
+"id": "frontier_obtain_medical",
+"required": 4,
+"requires_objective_complete": "frontier_dock_relay",
+"sector_id": "relay_market",
+"target": "medical_supplies",
+"type": "collect_item"
+}, {
+"consume_on_complete": true,
+"current": 0,
+"id": "frontier_deliver_medical",
+"required": 4,
+"requires_objective_complete": "frontier_obtain_medical",
+"station_id": "station_storm_outpost",
+"target": "medical_supplies",
+"type": "deliver_item"
+}],
+"order": 5,
+"rewards": {
+"credits": 500,
+"flags": ["story_new_frontier_complete"],
+"items": [],
+"materials": {}
+},
+"source_station_id": "station_relay_exchange",
+"title": "New Frontier",
+"turn_in_station_id": "station_storm_outpost"
+}, {
+"auto_turn_in": false,
+"description": "Harvest Volatile Gas from Storm Fields and return to station.",
+"id": "story_storm_chaser",
+"is_story": true,
+"next_id": "story_drone_incursion",
+"objectives": [{
+"current": 0,
+"id": "storm_collect_gas",
+"required": 5,
+"sector_id": "storm_fields",
+"target": "volatile_gas",
+"type": "collect_item"
+}, {
+"current": 0,
+"id": "storm_return_station",
+"required": 1,
+"target": "station_storm_outpost",
+"type": "dock_station"
+}],
+"order": 6,
+"rewards": {
+"credits": 600,
+"flags": ["story_storm_chaser_complete"],
+"items": [],
+"materials": {
+"industrial_crystal": 3
+}
+},
+"source_station_id": "station_storm_outpost",
+"title": "Storm Chaser",
+"turn_in_station_id": "station_storm_outpost"
+}, {
+"auto_turn_in": false,
+"description": "Destroy drone clusters in the Foundry and defeat the Rogue Drone Carrier.",
+"id": "story_drone_incursion",
+"is_story": true,
+"next_id": "story_ancient_gate",
+"objectives": [{
+"current": 0,
+"id": "drone_reach_foundry",
+"required": 1,
+"sector_id": "drone_foundry",
+"target": "drone_foundry",
+"type": "reach_sector"
+}, {
+"current": 0,
+"faction": "drone",
+"id": "drone_clear_clusters",
+"match_mode": "faction",
+"required": 10,
+"sector_id": "drone_foundry",
+"target": "drone",
+"type": "destroy_enemy"
+}, {
+"boss_spawn": true,
+"current": 0,
+"id": "drone_boss",
+"required": 1,
+"requires_objective_complete": "drone_clear_clusters",
+"sector_id": "drone_foundry",
+"target": "rogue_drone_carrier",
+"type": "defeat_boss"
+}],
+"order": 7,
+"rewards": {
+"credits": 1500,
+"flags": ["story_drone_incursion_complete"],
+"items": [{
+"item_id": "alien_circuitry",
+"quantity": 1
+}],
+"materials": {}
+},
+"source_station_id": "station_storm_outpost",
+"title": "Drone Incursion",
+"turn_in_station_id": "station_archive_sanctum"
+}, {
+"auto_turn_in": true,
+"description": "Activate three relic beacons, cross Silent Orbit, and defeat the Ancient Guardian Flagship.",
+"id": "story_ancient_gate",
+"is_story": true,
+"next_id": "",
+"objectives": [{
+"current": 0,
+"id": "ancient_relic_1",
+"required": 1,
+"sector_id": "archive_gate",
+"target": "anomaly_archive_relic_01",
+"type": "interact_anomaly"
+}, {
+"current": 0,
+"id": "ancient_relic_2",
+"required": 1,
+"requires_objective_complete": "ancient_relic_1",
+"sector_id": "archive_gate",
+"target": "anomaly_archive_relic_02",
+"type": "interact_anomaly"
+}, {
+"current": 0,
+"id": "ancient_relic_3",
+"required": 1,
+"requires_objective_complete": "ancient_relic_2",
+"sector_id": "archive_gate",
+"target": "anomaly_archive_relic_03",
+"type": "interact_anomaly"
+}, {
+"current": 0,
+"id": "ancient_reach_silent",
+"required": 1,
+"requires_objective_complete": "ancient_relic_3",
+"sector_id": "silent_orbit",
+"target": "silent_orbit",
+"type": "reach_sector"
+}, {
+"current": 0,
+"id": "ancient_reach_core",
+"required": 1,
+"requires_objective_complete": "ancient_reach_silent",
+"sector_id": "core_bastion",
+"target": "core_bastion",
+"type": "reach_sector"
+}, {
+"boss_spawn": true,
+"current": 0,
+"id": "ancient_boss",
+"required": 1,
+"requires_objective_complete": "ancient_reach_core",
+"sector_id": "core_bastion",
+"target": "ancient_guardian_flagship",
+"type": "defeat_boss"
+}],
+"order": 8,
+"rewards": {
+"credits": 2500,
+"flags": ["story_ancient_gate_complete", "game_complete", "post_game_unlocked", "player_title_restorer"],
+"items": [],
+"materials": {}
+},
+"source_station_id": "station_archive_sanctum",
+"title": "The Ancient Gate",
+"turn_in_station_id": "station_archive_sanctum"
+}])

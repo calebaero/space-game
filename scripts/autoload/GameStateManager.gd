@@ -43,6 +43,7 @@ const INPUT_ACTIONS: Dictionary = {
 	"cycle_weapon_1": ["1"],
 	"cycle_weapon_2": ["2"],
 	"cycle_target": ["Tab"],
+	"cycle_mission": ["Y"],
 	"map_toggle": ["M"],
 	"pause": ["Escape"],
 }

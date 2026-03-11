@@ -22,6 +22,7 @@ extends CanvasLayer
 @onready var minimap_panel: Control = %MiniMapPanel
 @onready var scanner_cooldown_indicator: Control = %ScannerCooldownIndicator
 @onready var in_flight_cargo_panel: CargoPanel = %InFlightCargoPanel
+@onready var mission_waypoint_label: Label = %MissionWaypointLabel
 
 var _player_ship: CharacterBody2D = null
 var _hull_flash_timer: float = 0.0
@@ -42,6 +43,7 @@ func _ready() -> void:
 	toast_label.text = ""
 	toast_label.visible = false
 	velocity_indicator.visible = false
+	mission_waypoint_label.visible = false
 	lead_indicator_label.visible = false
 	incoming_warning_label.visible = false
 	damage_flash.color.a = 0.0
@@ -66,10 +68,17 @@ func _process(_delta: float) -> void:
 	_update_status_bars()
 	_update_player_metrics()
 	_update_economy_readout()
+	_update_mission_tracking_ui()
 	_update_target_panel()
 	_update_target_lead_indicator()
 	_update_incoming_warning()
 	_update_damage_flash()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("cycle_mission"):
+		MissionManager.cycle_tracked_mission()
+		get_viewport().set_input_as_handled()
 
 
 func _update_status_bars() -> void:
@@ -118,6 +127,59 @@ func _update_economy_readout() -> void:
 	var cargo_capacity: int = int(max(GameStateManager.get_cargo_capacity(), 1))
 	cargo_label.text = "Cargo: %d/%d" % [cargo_used, cargo_capacity]
 	credits_label.text = "Credits: %d" % GameStateManager.credits
+
+
+func _update_mission_tracking_ui() -> void:
+	var summary: Dictionary = MissionManager.get_tracked_mission_summary()
+	if summary.is_empty():
+		mission_label.text = "No active mission"
+		mission_waypoint_label.visible = false
+		return
+
+	var title: String = String(summary.get("title", "Mission"))
+	var objective_text: String = String(summary.get("objective_text", ""))
+	mission_label.text = "%s\n%s" % [title, objective_text]
+
+	if _player_ship == null or not is_instance_valid(_player_ship):
+		mission_waypoint_label.visible = false
+		return
+
+	var context: Dictionary = MissionManager.get_tracked_objective_context(GameStateManager.current_sector_id, _player_ship.global_position)
+	if not bool(context.get("active", false)):
+		mission_waypoint_label.visible = false
+		return
+	var world_position_variant: Variant = context.get("world_position", Vector2.ZERO)
+	if not (world_position_variant is Vector2):
+		mission_waypoint_label.visible = false
+		return
+	var world_position: Vector2 = world_position_variant
+	if world_position == Vector2.ZERO:
+		mission_waypoint_label.visible = false
+		return
+
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	var center: Vector2 = viewport_size * 0.5
+	var target_screen: Vector2 = get_viewport().get_canvas_transform() * world_position
+	var distance: int = int(round(float(context.get("distance", 0.0))))
+
+	var margin: float = 36.0
+	var is_on_screen: bool = target_screen.x >= margin and target_screen.y >= margin and target_screen.x <= viewport_size.x - margin and target_screen.y <= viewport_size.y - margin
+	if is_on_screen:
+		mission_waypoint_label.visible = true
+		mission_waypoint_label.text = "Objective %d px" % max(distance, 0)
+		mission_waypoint_label.position = target_screen + Vector2(-72.0, -38.0)
+		return
+
+	var direction: Vector2 = (target_screen - center)
+	if direction.length_squared() <= 0.0001:
+		direction = Vector2.RIGHT
+	direction = direction.normalized()
+	var edge_position: Vector2 = center + direction * minf(viewport_size.x, viewport_size.y) * 0.42
+	var angle_deg: int = int(round(rad_to_deg(direction.angle())))
+
+	mission_waypoint_label.visible = true
+	mission_waypoint_label.text = "Objective %d px  %d°" % [max(distance, 0), angle_deg]
+	mission_waypoint_label.position = edge_position - Vector2(96.0, 12.0)
 
 
 func _update_velocity_indicator(velocity_vector: Vector2) -> void:

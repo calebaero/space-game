@@ -13,6 +13,9 @@ const WEAPON_CATALOG_PATH: String = "res://data/items/weapons.tres"
 const MODULE_CATALOG_PATH: String = "res://data/items/modules.tres"
 const UPGRADE_CATALOG_PATH: String = "res://data/items/upgrades.tres"
 const ENEMY_ARCHETYPES_PATH: String = "res://data/enemies/enemy_archetypes.tres"
+const BOSS_ARCHETYPES_PATH: String = "res://data/enemies/boss_archetypes.tres"
+const CONTRACT_TEMPLATES_PATH: String = "res://data/missions/contract_templates.tres"
+const STORY_MISSIONS_PATH: String = "res://data/missions/story_missions.tres"
 const MARKET_PROFILE_PATH: String = "res://data/economy/market_profiles.tres"
 const REFINING_RECIPES_PATH: String = "res://data/economy/refining_recipes.tres"
 const CRAFTING_RECIPES_PATH: String = "res://data/economy/crafting_recipes.tres"
@@ -37,8 +40,11 @@ var _weapons_by_id: Dictionary = {}
 var _modules_by_id: Dictionary = {}
 var _upgrade_paths_by_id: Dictionary = {}
 var _enemy_archetypes_by_id: Dictionary = {}
+var _boss_archetypes_by_id: Dictionary = {}
 var _node_tiers_by_tier: Dictionary = {}
 var _hazard_types_by_id: Dictionary = {}
+var _contract_templates: Array[Dictionary] = []
+var _story_missions: Array[Dictionary] = []
 var _market_profile: Dictionary = {}
 var _refining_recipes: Array[Dictionary] = []
 var _crafting_recipes: Array[Dictionary] = []
@@ -61,8 +67,11 @@ func load_content(force_reload: bool = false) -> void:
 	_modules_by_id.clear()
 	_upgrade_paths_by_id.clear()
 	_enemy_archetypes_by_id.clear()
+	_boss_archetypes_by_id.clear()
 	_node_tiers_by_tier.clear()
 	_hazard_types_by_id.clear()
+	_contract_templates.clear()
+	_story_missions.clear()
 	_market_profile.clear()
 	_refining_recipes.clear()
 	_crafting_recipes.clear()
@@ -72,6 +81,8 @@ func load_content(force_reload: bool = false) -> void:
 	_load_module_catalog()
 	_load_upgrade_catalog()
 	_load_enemy_archetypes()
+	_load_boss_archetypes()
+	_load_mission_catalogs()
 	_load_market_profile()
 	_load_recipe_catalogs()
 	_load_galaxies()
@@ -216,6 +227,29 @@ func get_enemy_archetype_definition(archetype_id: StringName) -> Dictionary:
 	if not _enemy_archetypes_by_id.has(key):
 		return {}
 	return (_enemy_archetypes_by_id[key] as Dictionary).duplicate(true)
+
+
+func get_all_boss_archetypes() -> Dictionary:
+	ensure_loaded()
+	return _boss_archetypes_by_id.duplicate(true)
+
+
+func get_boss_archetype_definition(archetype_id: StringName) -> Dictionary:
+	ensure_loaded()
+	var key: String = String(archetype_id)
+	if not _boss_archetypes_by_id.has(key):
+		return {}
+	return (_boss_archetypes_by_id[key] as Dictionary).duplicate(true)
+
+
+func get_contract_templates() -> Array[Dictionary]:
+	ensure_loaded()
+	return _contract_templates.duplicate(true)
+
+
+func get_story_mission_templates() -> Array[Dictionary]:
+	ensure_loaded()
+	return _story_missions.duplicate(true)
 
 
 func get_node_tier_definition(tier: int) -> Dictionary:
@@ -391,6 +425,49 @@ func _load_enemy_archetypes() -> void:
 		_enemy_archetypes_by_id[archetype_id] = archetype_entry
 
 
+func _load_boss_archetypes() -> void:
+	var catalog_resource: Resource = load(BOSS_ARCHETYPES_PATH)
+	if catalog_resource == null:
+		push_warning("ContentDatabase failed to load boss archetypes at: %s" % BOSS_ARCHETYPES_PATH)
+		return
+	if not (catalog_resource is EnemyCatalog):
+		push_warning("Boss archetype catalog has wrong type at: %s" % BOSS_ARCHETYPES_PATH)
+		return
+
+	var catalog: EnemyCatalog = catalog_resource
+	for archetype_variant in catalog.archetypes:
+		if archetype_variant is not Dictionary:
+			continue
+		var archetype_entry: Dictionary = (archetype_variant as Dictionary).duplicate(true)
+		var archetype_id: String = String(archetype_entry.get("id", ""))
+		if archetype_id.is_empty():
+			continue
+		_boss_archetypes_by_id[archetype_id] = archetype_entry
+
+
+func _load_mission_catalogs() -> void:
+	_contract_templates = _load_mission_catalog(CONTRACT_TEMPLATES_PATH)
+	_story_missions = _load_mission_catalog(STORY_MISSIONS_PATH)
+
+
+func _load_mission_catalog(path: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var catalog_resource: Resource = load(path)
+	if catalog_resource == null:
+		push_warning("ContentDatabase failed to load mission catalog at: %s" % path)
+		return result
+	if not (catalog_resource is MissionCatalog):
+		push_warning("Mission catalog has wrong type at: %s" % path)
+		return result
+
+	var catalog: MissionCatalog = catalog_resource
+	for entry_variant in catalog.templates:
+		if entry_variant is not Dictionary:
+			continue
+		result.append((entry_variant as Dictionary).duplicate(true))
+	return result
+
+
 func _load_market_profile() -> void:
 	var catalog_resource: Resource = load(MARKET_PROFILE_PATH)
 	if catalog_resource == null:
@@ -485,6 +562,7 @@ func _load_sectors() -> void:
 			"hazard_zones": sector.hazard_zones.duplicate(true),
 			"loot_crates": sector.loot_crates.duplicate(true),
 			"enemy_patrols": sector.enemy_patrols.duplicate(true),
+			"boss_arena": sector.boss_arena.duplicate(true),
 			"station_id": station_id,
 			"station_economy_type": station_economy_type,
 			"hazard_types": Array(sector.hazard_types),

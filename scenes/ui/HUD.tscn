@@ -298,6 +298,17 @@ text = "INCOMING FIRE"
 horizontal_alignment = 1
 modulate = Color(1, 0.32, 0.3, 1)
 
+[node name="MissionWaypointLabel" type="Label" parent="Root"]
+unique_name_in_owner = true
+visible = false
+offset_left = 832.0
+offset_top = 130.0
+offset_right = 1092.0
+offset_bottom = 160.0
+text = "Objective 0 px"
+horizontal_alignment = 1
+modulate = Color(1, 0.92, 0.34, 0.95)
+
 [node name="DamageFlash" type="ColorRect" parent="Root"]
 unique_name_in_owner = true
 layout_mode = 1

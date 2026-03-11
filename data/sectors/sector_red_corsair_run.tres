@@ -19,5 +19,6 @@ asteroid_fields = []
 hazard_zones = [{"hazard_type": "radiation_cloud", "id": "hazard_red_radiation", "position": Vector2(420, 540), "radius": 860.0}, {"hazard_type": "debris_field", "id": "hazard_red_debris", "position": Vector2(-1180, 220), "radius": 640.0}]
 loot_crates = [{ "hidden_until_scanned": true, "position": Vector2(-1660, 820), "contents": [{ "item_type": "credits", "item_id": "", "quantity": 70 }, { "item_type": "resource", "item_id": "volatile_gas", "quantity": 1 }] }]
 enemy_patrols = [{"archetypes": ["pirate_skirmisher", "pirate_bomber"], "center": Vector2(-2380, -860), "id": "patrol_red_west", "radius": 520.0}, {"archetypes": ["pirate_skirmisher", "pirate_bomber", "pirate_skirmisher"], "center": Vector2(40, 1320), "id": "patrol_red_south", "radius": 560.0}, {"archetypes": ["pirate_bomber", "pirate_skirmisher"], "center": Vector2(2240, -540), "id": "patrol_red_east", "radius": 520.0}]
+boss_arena = {"position": Vector2(980, -1200), "radius": 820.0}
 hazard_types = PackedStringArray("radiation_cloud", "debris_field")
 content_tags = PackedStringArray("pirates", "enemy_patrols", "resource_zones")

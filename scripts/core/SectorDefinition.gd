@@ -17,5 +17,6 @@ class_name SectorDefinition
 @export var hazard_zones: Array[Dictionary] = []
 @export var loot_crates: Array[Dictionary] = []
 @export var enemy_patrols: Array[Dictionary] = []
+@export var boss_arena: Dictionary = {}
 @export var hazard_types: PackedStringArray = PackedStringArray()
 @export var content_tags: PackedStringArray = PackedStringArray()

@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/core/GameRoot.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="2"]
@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/GameOverScreen.tscn" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/ui/WreckRecoveryPanel.tscn" id="9"]
 [ext_resource type="PackedScene" path="res://scenes/ui/TooltipPanel.tscn" id="10"]
+[ext_resource type="PackedScene" path="res://scenes/ui/VictoryOverlay.tscn" id="11"]
 
 [node name="GameRoot" type="Node"]
 script = ExtResource("1")
@@ -44,6 +45,9 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 
 [node name="TooltipPanel" parent="PersistentUI" instance=ExtResource("10")]
+unique_name_in_owner = true
+
+[node name="VictoryOverlay" parent="PersistentUI" instance=ExtResource("11")]
 unique_name_in_owner = true
 
 [node name="WarpTransitionOverlay" parent="." instance=ExtResource("6")]

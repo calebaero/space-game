@@ -38,6 +38,7 @@ func on_scanned(_duration: float = 5.0) -> void:
 	if _is_consumed:
 		return
 	_is_scanned = true
+	MissionManager.report_anomaly_scanned(anomaly_id, anomaly_type, GameStateManager.current_sector_id)
 	_refresh_label()
 	queue_redraw()
 
@@ -58,6 +59,7 @@ func interact(_player_ship: Node) -> bool:
 		return false
 
 	_is_consumed = true
+	MissionManager.report_anomaly_interacted(anomaly_id, anomaly_type, GameStateManager.current_sector_id)
 	_apply_stub_reward()
 	_refresh_label()
 	queue_redraw()

@@ -185,6 +185,29 @@ func apply_projectile_damage(amount: float, _projectile: Node = null) -> void:
 	tween.tween_property(self, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.12)
 
 
+func apply_runtime_modifiers(modifiers: Dictionary) -> void:
+	if modifiers.has("display_name"):
+		display_name = String(modifiers.get("display_name", display_name))
+	if modifiers.has("mission_tag"):
+		set_meta("mission_tag", String(modifiers.get("mission_tag", "")))
+	if bool(modifiers.get("is_boss", false)):
+		set_meta("is_boss", true)
+		set_meta("boss_id", String(modifiers.get("boss_id", archetype_id)))
+
+	var hull_multiplier: float = float(modifiers.get("hull_multiplier", 1.0))
+	var shield_multiplier: float = float(modifiers.get("shield_multiplier", 1.0))
+	if absf(hull_multiplier - 1.0) > 0.001 or absf(shield_multiplier - 1.0) > 0.001:
+		damageable.max_hull = maxf(damageable.max_hull * maxf(hull_multiplier, 0.1), 1.0)
+		damageable.max_shield = maxf(damageable.max_shield * maxf(shield_multiplier, 0.0), 0.0)
+		damageable.reset_to_full()
+
+	var damage_multiplier: float = float(modifiers.get("damage_multiplier", 1.0))
+	if absf(damage_multiplier - 1.0) > 0.001 and not _weapon_data.is_empty():
+		var weapon_copy: Dictionary = _weapon_data.duplicate(true)
+		weapon_copy["damage"] = float(_weapon_data.get("damage", 0.0)) * maxf(damage_multiplier, 0.1)
+		_weapon_data = weapon_copy
+
+
 func _physics_process(delta: float) -> void:
 	if _death_handled:
 		return
@@ -346,6 +369,17 @@ func _on_destroyed() -> void:
 	if _death_handled:
 		return
 	_death_handled = true
+	var is_boss_ship: bool = bool(get_meta("is_boss", false))
+	var boss_id: StringName = StringName(String(get_meta("boss_id", "")))
+	var mission_tag: StringName = StringName(String(get_meta("mission_tag", "")))
+	MissionManager.report_enemy_destroyed(
+		archetype_id,
+		faction,
+		GameStateManager.current_sector_id,
+		is_boss_ship,
+		boss_id,
+		mission_tag
+	)
 	_spawn_explosion_effect()
 	_spawn_loot_drops()
 	enemy_destroyed.emit(self, archetype_id)

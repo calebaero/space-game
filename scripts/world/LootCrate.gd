@@ -95,6 +95,7 @@ func _on_body_entered(body: Node) -> void:
 
 func _apply_contents() -> bool:
 	var collected_anything: bool = false
+	var collected_manifest: Array[Dictionary] = []
 
 	for content_variant in contents:
 		if content_variant is not Dictionary:
@@ -111,6 +112,7 @@ func _apply_contents() -> bool:
 				var added: int = GameStateManager.add_cargo(StringName(item_id), quantity)
 				if added > 0:
 					collected_anything = true
+					collected_manifest.append({"item_type": item_type, "item_id": item_id, "quantity": added})
 					var item_def: Dictionary = ContentDatabase.get_item_definition(StringName(item_id))
 					var resource_name: String = String(item_def.get("name", item_id))
 					UIManager.show_toast("+%d %s" % [added, resource_name], &"success")
@@ -118,6 +120,7 @@ func _apply_contents() -> bool:
 				GameStateManager.credits += quantity
 				UIManager.show_toast("+%d Credits" % quantity, &"success")
 				collected_anything = true
+				collected_manifest.append({"item_type": item_type, "item_id": item_id, "quantity": quantity})
 			"commodity", "material":
 				var added_trade: int = GameStateManager.add_cargo(StringName(item_id), quantity)
 				if added_trade > 0:
@@ -125,20 +128,25 @@ func _apply_contents() -> bool:
 					var item_name: String = String(item_data.get("name", item_id))
 					UIManager.show_toast("+%d %s" % [added_trade, item_name], &"success")
 					collected_anything = true
+					collected_manifest.append({"item_type": item_type, "item_id": item_id, "quantity": added_trade})
 			"mission_item":
 				var mission_item_def: Dictionary = ContentDatabase.get_item_definition(StringName(item_id))
 				if bool(mission_item_def.get("store_in_relic_inventory", false)):
 					GameStateManager.add_relic(StringName(item_id), quantity)
 					UIManager.show_toast("Recovered %s x%d" % [String(mission_item_def.get("name", item_id)), quantity], &"success")
 					collected_anything = true
+					collected_manifest.append({"item_type": item_type, "item_id": item_id, "quantity": quantity})
 				else:
 					var added_mission: int = GameStateManager.add_cargo(StringName(item_id), quantity)
 					if added_mission > 0:
 						UIManager.show_toast("+%d %s" % [added_mission, String(mission_item_def.get("name", item_id))], &"success")
 						collected_anything = true
+						collected_manifest.append({"item_type": item_type, "item_id": item_id, "quantity": added_mission})
 			_:
 				continue
 
+	if collected_anything:
+		MissionManager.report_loot_collected(collected_manifest, GameStateManager.current_sector_id)
 	return collected_anything
 
 

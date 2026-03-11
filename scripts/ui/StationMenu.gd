@@ -61,6 +61,13 @@ var _upgrades_initialized: bool = false
 var _upgrade_summary_label: Label = null
 var _upgrade_rows_vbox: VBoxContainer = null
 var _module_sections_vbox: VBoxContainer = null
+var _missions_initialized: bool = false
+var _story_missions_vbox: VBoxContainer = null
+var _available_contracts_vbox: VBoxContainer = null
+var _active_missions_vbox: VBoxContainer = null
+var _abandon_confirm_dialog: ConfirmationDialog = null
+var _pending_abandon_mission_id: StringName = &""
+var _pending_abandon_mission_title: String = ""
 
 
 func _ready() -> void:
@@ -105,8 +112,18 @@ func _ready() -> void:
 		GameStateManager.cargo_changed.connect(_on_cargo_changed)
 	if not GameStateManager.hull_changed.is_connected(_on_hull_changed):
 		GameStateManager.hull_changed.connect(_on_hull_changed)
+	if not MissionManager.mission_state_changed.is_connected(_on_mission_state_changed):
+		MissionManager.mission_state_changed.connect(_on_mission_state_changed)
+
+	_abandon_confirm_dialog = ConfirmationDialog.new()
+	_abandon_confirm_dialog.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	_abandon_confirm_dialog.dialog_text = "Abandon this mission?"
+	_abandon_confirm_dialog.title = "Confirm Abandon"
+	_abandon_confirm_dialog.confirmed.connect(_on_abandon_confirmed)
+	add_child(_abandon_confirm_dialog)
 
 	_build_upgrades_page()
+	_build_missions_page()
 	_switch_tab(StationTab.MARKET, true)
 
 
@@ -127,6 +144,7 @@ func open_for_station(station_data: Dictionary) -> void:
 
 	_populate_service_flags()
 	_apply_service_availability()
+	MissionManager.generate_contracts(_active_station_id)
 
 	if station_cargo_panel != null:
 		station_cargo_panel.set_station_context(_active_station_id, true)
@@ -144,6 +162,10 @@ func close_menu() -> void:
 	_active_station_data.clear()
 	_active_station_id = &""
 	_active_services.clear()
+	_pending_abandon_mission_id = &""
+	_pending_abandon_mission_title = ""
+	if _abandon_confirm_dialog != null and is_instance_valid(_abandon_confirm_dialog):
+		_abandon_confirm_dialog.hide()
 	_clear_dynamic_rows()
 	UIManager.hide_tooltip()
 
@@ -234,6 +256,7 @@ func _switch_tab(next_tab: StationTab, force: bool = false) -> void:
 
 func _refresh_all_tab_content() -> void:
 	UIManager.hide_tooltip()
+	_refresh_missions_tab()
 	_refresh_market_tab()
 	_refresh_refinery_tab()
 	_refresh_workshop_tab()
@@ -241,6 +264,283 @@ func _refresh_all_tab_content() -> void:
 	_refresh_repair_tab()
 	if station_cargo_panel != null:
 		station_cargo_panel.refresh_panel()
+
+
+func _build_missions_page() -> void:
+	if _missions_initialized:
+		return
+
+	for child in missions_page.get_children():
+		child.queue_free()
+
+	var root_vbox: VBoxContainer = VBoxContainer.new()
+	root_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root_vbox.add_theme_constant_override("separation", 8)
+	missions_page.add_child(root_vbox)
+
+	var story_header: Label = Label.new()
+	story_header.text = "Story Missions"
+	root_vbox.add_child(story_header)
+
+	var story_panel: PanelContainer = PanelContainer.new()
+	story_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	story_panel.custom_minimum_size = Vector2(0.0, 140.0)
+	root_vbox.add_child(story_panel)
+
+	var story_scroll: ScrollContainer = ScrollContainer.new()
+	story_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	story_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	story_panel.add_child(story_scroll)
+
+	_story_missions_vbox = VBoxContainer.new()
+	_story_missions_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_story_missions_vbox.add_theme_constant_override("separation", 6)
+	story_scroll.add_child(_story_missions_vbox)
+
+	var contracts_header: Label = Label.new()
+	contracts_header.text = "Available Contracts"
+	root_vbox.add_child(contracts_header)
+
+	var contracts_split: HSplitContainer = HSplitContainer.new()
+	contracts_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	contracts_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	contracts_split.split_offset = 420
+	root_vbox.add_child(contracts_split)
+
+	var available_panel: PanelContainer = PanelContainer.new()
+	available_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	contracts_split.add_child(available_panel)
+
+	var available_scroll: ScrollContainer = ScrollContainer.new()
+	available_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	available_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	available_panel.add_child(available_scroll)
+
+	_available_contracts_vbox = VBoxContainer.new()
+	_available_contracts_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_available_contracts_vbox.add_theme_constant_override("separation", 6)
+	available_scroll.add_child(_available_contracts_vbox)
+
+	var active_panel: PanelContainer = PanelContainer.new()
+	active_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	contracts_split.add_child(active_panel)
+
+	var active_scroll: ScrollContainer = ScrollContainer.new()
+	active_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	active_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	active_panel.add_child(active_scroll)
+
+	_active_missions_vbox = VBoxContainer.new()
+	_active_missions_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_active_missions_vbox.add_theme_constant_override("separation", 6)
+	active_scroll.add_child(_active_missions_vbox)
+
+	_missions_initialized = true
+
+
+func _refresh_missions_tab() -> void:
+	_build_missions_page()
+	if _story_missions_vbox == null or _available_contracts_vbox == null or _active_missions_vbox == null:
+		return
+
+	_clear_container(_story_missions_vbox)
+	_clear_container(_available_contracts_vbox)
+	_clear_container(_active_missions_vbox)
+
+	if not _has_service("missions"):
+		_add_info_label(_story_missions_vbox, "Mission board unavailable at this station.")
+		return
+
+	var story_offers: Array[Dictionary] = MissionManager.get_story_missions_for_station(_active_station_id)
+	if story_offers.is_empty():
+		_add_info_label(_story_missions_vbox, "No story missions available at this station.")
+	else:
+		for story_offer in story_offers:
+			_create_mission_offer_row(_story_missions_vbox, story_offer, true)
+
+	var contract_offers: Array[Dictionary] = MissionManager.get_contracts_for_station(_active_station_id)
+	if contract_offers.is_empty():
+		_add_info_label(_available_contracts_vbox, "No contracts currently available.")
+	else:
+		for offer in contract_offers:
+			_create_mission_offer_row(_available_contracts_vbox, offer, false)
+
+	var active_missions: Array[Dictionary] = MissionManager.get_active_missions()
+	if active_missions.is_empty():
+		_add_info_label(_active_missions_vbox, "No active missions.")
+		return
+	for mission in active_missions:
+		_create_active_mission_row(_active_missions_vbox, mission)
+
+
+func _create_mission_offer_row(target_container: VBoxContainer, mission: Dictionary, is_story: bool) -> void:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	target_container.add_child(panel)
+
+	var margin: MarginContainer = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margin)
+
+	var row: HBoxContainer = HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+	margin.add_child(row)
+
+	var info_vbox: VBoxContainer = VBoxContainer.new()
+	info_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info_vbox.add_theme_constant_override("separation", 2)
+	row.add_child(info_vbox)
+
+	var title_label: Label = Label.new()
+	var mission_title: String = String(mission.get("title", "Mission"))
+	title_label.text = "%s%s" % ["[STORY] " if is_story else "", mission_title]
+	if is_story:
+		title_label.modulate = Color(1.0, 0.9, 0.42, 0.98)
+	info_vbox.add_child(title_label)
+
+	var desc_label: Label = Label.new()
+	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	desc_label.text = String(mission.get("description", ""))
+	desc_label.modulate = Color(0.74, 0.8, 0.92, 0.95)
+	info_vbox.add_child(desc_label)
+
+	var reward_label: Label = Label.new()
+	var reward_credits: int = int((mission.get("rewards", {}) as Dictionary).get("credits", 0))
+	reward_label.text = "Reward: %d credits" % reward_credits
+	reward_label.modulate = Color(0.58, 0.95, 0.64, 0.96)
+	info_vbox.add_child(reward_label)
+
+	var accept_button: Button = Button.new()
+	accept_button.custom_minimum_size = Vector2(108.0, 0.0)
+	accept_button.text = "Accept"
+	accept_button.pressed.connect(func() -> void:
+		var result: Dictionary = {}
+		if is_story:
+			var template_identifier: StringName = StringName(String(mission.get("template_id", mission.get("id", ""))))
+			result = MissionManager.accept_story_mission(template_identifier)
+		else:
+			result = MissionManager.accept_contract(_active_station_id, StringName(String(mission.get("id", ""))))
+		if not bool(result.get("success", false)):
+			UIManager.show_toast(String(result.get("message", "Could not accept mission.")), &"warning")
+			return
+		UIManager.show_toast("Mission accepted: %s" % mission_title, &"success")
+		_refresh_missions_tab()
+	)
+	row.add_child(accept_button)
+
+
+func _create_active_mission_row(target_container: VBoxContainer, mission: Dictionary) -> void:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	target_container.add_child(panel)
+
+	var margin: MarginContainer = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margin)
+
+	var root_vbox: VBoxContainer = VBoxContainer.new()
+	root_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_vbox.add_theme_constant_override("separation", 4)
+	margin.add_child(root_vbox)
+
+	var title_label: Label = Label.new()
+	title_label.text = String(mission.get("title", "Mission"))
+	if bool(mission.get("is_story", false)):
+		title_label.text = "[STORY] %s" % title_label.text
+		title_label.modulate = Color(1.0, 0.9, 0.42, 0.98)
+	root_vbox.add_child(title_label)
+
+	var objective_label: Label = Label.new()
+	objective_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	objective_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	objective_label.text = _build_mission_objective_lines(mission)
+	root_vbox.add_child(objective_label)
+
+	var button_row: HBoxContainer = HBoxContainer.new()
+	button_row.add_theme_constant_override("separation", 6)
+	root_vbox.add_child(button_row)
+
+	var mission_id: StringName = StringName(String(mission.get("id", "")))
+	var track_button: Button = Button.new()
+	track_button.text = "Track"
+	track_button.disabled = MissionManager.get_tracked_mission_id() == mission_id
+	track_button.pressed.connect(func() -> void:
+		MissionManager.set_tracked_mission(mission_id)
+		_refresh_missions_tab()
+	)
+	button_row.add_child(track_button)
+
+	var abandon_button: Button = Button.new()
+	abandon_button.text = "Abandon"
+	abandon_button.disabled = bool(mission.get("is_story", false))
+	abandon_button.pressed.connect(func() -> void:
+		_prompt_abandon_mission(mission_id, String(mission.get("title", "Mission")))
+	)
+	button_row.add_child(abandon_button)
+
+	var turn_in_button: Button = Button.new()
+	turn_in_button.text = "Turn In"
+	turn_in_button.disabled = not MissionManager.can_turn_in_mission(mission_id, _active_station_id)
+	turn_in_button.pressed.connect(func() -> void:
+		var result: Dictionary = MissionManager.turn_in_mission(mission_id, _active_station_id)
+		if not bool(result.get("success", false)):
+			UIManager.show_toast(String(result.get("message", "Cannot turn in mission.")), &"warning")
+			return
+		UIManager.show_toast("Mission turned in.", &"success")
+		_refresh_all_tab_content()
+	)
+	button_row.add_child(turn_in_button)
+
+
+func _build_mission_objective_lines(mission: Dictionary) -> String:
+	var lines: Array[String] = []
+	for objective_variant in mission.get("objectives", []):
+		if objective_variant is not Dictionary:
+			continue
+		var objective: Dictionary = objective_variant
+		var summary: String = MissionManager.format_objective_progress(objective)
+		if summary.is_empty():
+			continue
+			var complete: bool = int(objective.get("current", 0)) >= max(int(objective.get("required", 1)), 1)
+			lines.append("%s %s" % ["[x]" if complete else "[ ]", summary])
+	return "\n".join(lines)
+
+
+func _prompt_abandon_mission(mission_id: StringName, mission_title: String) -> void:
+	_pending_abandon_mission_id = mission_id
+	_pending_abandon_mission_title = mission_title
+	if _abandon_confirm_dialog == null or not is_instance_valid(_abandon_confirm_dialog):
+		var fallback_result: Dictionary = MissionManager.abandon_mission(mission_id)
+		if not bool(fallback_result.get("success", false)):
+			UIManager.show_toast(String(fallback_result.get("message", "Failed to abandon mission.")), &"warning")
+			return
+		UIManager.show_toast("Mission abandoned.", &"info")
+		_refresh_missions_tab()
+		return
+	_abandon_confirm_dialog.dialog_text = "Abandon \"%s\"?\nThis mission progress will be lost." % mission_title
+	_abandon_confirm_dialog.popup_centered_clamped(Vector2(440.0, 180.0))
+
+
+func _on_abandon_confirmed() -> void:
+	if _pending_abandon_mission_id == &"":
+		return
+	var result: Dictionary = MissionManager.abandon_mission(_pending_abandon_mission_id)
+	if not bool(result.get("success", false)):
+		UIManager.show_toast(String(result.get("message", "Failed to abandon mission.")), &"warning")
+		return
+	UIManager.show_toast("Mission abandoned: %s" % _pending_abandon_mission_title, &"info")
+	_pending_abandon_mission_id = &""
+	_pending_abandon_mission_title = ""
+	_refresh_missions_tab()
 
 
 func _refresh_market_tab() -> void:
@@ -1241,6 +1541,12 @@ func _on_hull_changed(_current: float, _max_value: float) -> void:
 	if not visible:
 		return
 	_refresh_repair_tab()
+
+
+func _on_mission_state_changed() -> void:
+	if not visible:
+		return
+	_refresh_missions_tab()
 
 
 func _has_service(service_key: String) -> bool:

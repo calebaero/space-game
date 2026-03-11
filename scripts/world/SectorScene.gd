@@ -3,6 +3,9 @@ extends Node2D
 const SECTOR_SIZE: Vector2 = Vector2(8000.0, 8000.0)
 const SECTOR_HALF: Vector2 = SECTOR_SIZE * 0.5
 const PLAYER_SHIP_SCENE: PackedScene = preload("res://scenes/player/PlayerShip.tscn")
+const MISSION_MARKER_SCENE: PackedScene = preload("res://scenes/world/MissionMarker.tscn")
+const ENEMY_SHIP_SCENE: PackedScene = preload("res://scenes/enemies/EnemyShip.tscn")
+const BOSS_SHIP_SCENE: PackedScene = preload("res://scenes/enemies/BossShip.tscn")
 
 const BOUNDARY_THICKNESS: float = 220.0
 const BOUNDARY_WARNING_DEPTH: float = 240.0
@@ -21,9 +24,11 @@ var _player_ship: CharacterBody2D = null
 var _station_node: Node2D = null
 var _warp_gate_nodes: Array = []
 var _enemy_ship_nodes: Array = []
+var _boss_ship_nodes: Array = []
 var _wreck_beacon_node: WreckBeacon = null
 var _background_tint: Color = Color(0.2, 0.3, 0.55, 1.0)
 var _sector_populator: SectorPopulator = SectorPopulator.new()
+var _mission_markers: Dictionary = {}
 
 
 func _ready() -> void:
@@ -118,15 +123,17 @@ func _apply_sector_data() -> void:
 	_station_node = station_variant if station_variant is Node2D else null
 	_warp_gate_nodes = population.get("warp_gates", [])
 	_enemy_ship_nodes = population.get("enemy_ships", [])
+	_boss_ship_nodes.clear()
 	_wreck_beacon_node = population.get("wreck_beacon", null)
 	_assign_player_to_enemies()
+	clear_mission_markers()
 
 	_background_tint = _sector_data.get("background_tint", Color(0.2, 0.3, 0.55, 1.0))
 	_build_sector_boundaries()
 
 	var galaxy_name: String = String(_galaxy_data.get("name", "Unknown Galaxy"))
 	var sector_name: String = String(_sector_data.get("name", "Unknown Sector"))
-	debug_label.text = "%s — %s\nPhase 06 Build Shell" % [galaxy_name, sector_name]
+	debug_label.text = "%s — %s\nPhase 07 Mission/Boss Shell" % [galaxy_name, sector_name]
 	queue_redraw()
 
 
@@ -139,6 +146,97 @@ func _assign_player_to_enemies() -> void:
 			continue
 		if enemy.has_method("set_player_ship"):
 			enemy.call("set_player_ship", _player_ship)
+
+
+func clear_mission_markers() -> void:
+	for marker_variant in _mission_markers.values():
+		var marker_node: Node = marker_variant
+		if marker_node != null and is_instance_valid(marker_node):
+			marker_node.queue_free()
+	_mission_markers.clear()
+
+
+func set_mission_markers(markers: Array[Dictionary]) -> void:
+	clear_mission_markers()
+	for marker_data in markers:
+		if marker_data.is_empty():
+			continue
+		var marker_id: String = String(marker_data.get("id", ""))
+		var marker_position_variant: Variant = marker_data.get("position", null)
+		if marker_id.is_empty() or not (marker_position_variant is Vector2):
+			continue
+		var marker_node: MissionMarker = MISSION_MARKER_SCENE.instantiate() as MissionMarker
+		if marker_node == null:
+			continue
+		marker_node.position = marker_position_variant
+		content_root.add_child(marker_node)
+		marker_node.configure(marker_data)
+		_mission_markers[marker_id] = marker_node
+
+
+func spawn_runtime_enemy(spawn_data: Dictionary) -> EnemyShip:
+	var archetype_id: StringName = StringName(String(spawn_data.get("archetype_id", "")))
+	if archetype_id == &"":
+		return null
+
+	var enemy_ship: EnemyShip = ENEMY_SHIP_SCENE.instantiate() as EnemyShip
+	if enemy_ship == null:
+		return null
+
+	var spawn_position: Vector2 = spawn_data.get("position", Vector2.ZERO)
+	if spawn_position == Vector2.ZERO:
+		spawn_position = Vector2(randf_range(-2600.0, 2600.0), randf_range(-2600.0, 2600.0))
+	enemy_ship.position = spawn_position
+	content_root.add_child(enemy_ship)
+	enemy_ship.configure({
+		"archetype_id": String(archetype_id),
+		"spawn_origin": spawn_position,
+		"patrol_center": spawn_position,
+		"patrol_radius": float(spawn_data.get("patrol_radius", 260.0)),
+	})
+
+	if enemy_ship.has_method("apply_runtime_modifiers"):
+		enemy_ship.call("apply_runtime_modifiers", spawn_data)
+
+	var mission_tag: String = String(spawn_data.get("mission_tag", ""))
+	if not mission_tag.is_empty():
+		enemy_ship.set_meta("mission_tag", mission_tag)
+
+	if _player_ship != null and is_instance_valid(_player_ship) and enemy_ship.has_method("set_player_ship"):
+		enemy_ship.call("set_player_ship", _player_ship)
+
+	_enemy_ship_nodes.append(enemy_ship)
+	return enemy_ship
+
+
+func spawn_runtime_boss(spawn_data: Dictionary) -> Node2D:
+	var boss_data: Dictionary = spawn_data.get("boss_data", {})
+	if boss_data.is_empty():
+		return null
+
+	var boss_ship: Node2D = BOSS_SHIP_SCENE.instantiate() as Node2D
+	if boss_ship == null:
+		return null
+
+	var spawn_position: Vector2 = spawn_data.get("position", Vector2.ZERO)
+	if spawn_position == Vector2.ZERO:
+		spawn_position = Vector2(randf_range(-1800.0, 1800.0), randf_range(-1600.0, 1600.0))
+	boss_ship.position = spawn_position
+	content_root.add_child(boss_ship)
+	if boss_ship.has_method("configure_boss"):
+		boss_ship.call("configure_boss", boss_data)
+
+	if _player_ship != null and is_instance_valid(_player_ship) and boss_ship.has_method("set_player_ship"):
+		boss_ship.call("set_player_ship", _player_ship)
+
+	if spawn_data.has("mission_id"):
+		boss_ship.set_meta("mission_id", String(spawn_data.get("mission_id", "")))
+	if spawn_data.has("objective_id"):
+		boss_ship.set_meta("objective_id", String(spawn_data.get("objective_id", "")))
+
+	_enemy_ship_nodes.append(boss_ship)
+	_boss_ship_nodes.append(boss_ship)
+	return boss_ship
 
 
 func _build_sector_boundaries() -> void:

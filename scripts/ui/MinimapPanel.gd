@@ -38,6 +38,7 @@ func _draw() -> void:
 	_draw_world_points("resource_node", Color(0.45, 1.0, 0.45, 0.9), 2.8, center, map_radius, jitter_strength)
 	_draw_world_points("loot_crate", Color(1.0, 0.9, 0.32, 0.95), 2.6, center, map_radius, jitter_strength)
 	_draw_world_points("anomaly_point", Color(0.82, 0.48, 1.0, 0.95), 3.0, center, map_radius, jitter_strength)
+	_draw_mission_markers(center, map_radius, jitter_strength)
 	_draw_world_points("wreck_beacon", Color(1.0, 1.0, 1.0, 0.95), 3.2, center, map_radius, jitter_strength)
 	_draw_hazard_areas(center, map_radius, jitter_strength)
 
@@ -70,6 +71,25 @@ func _draw_hazard_areas(center: Vector2, map_radius: float, jitter_strength: flo
 		var zone_radius_map: float = clampf((zone_radius_world / world_half_extent) * map_radius, 4.0, map_radius)
 		draw_circle(zone_position, zone_radius_map, Color(1.0, 0.58, 0.26, 0.16))
 		draw_arc(zone_position, zone_radius_map, 0.0, TAU, 40, Color(1.0, 0.62, 0.3, 0.32), 1.0)
+
+
+func _draw_mission_markers(center: Vector2, map_radius: float, jitter_strength: float) -> void:
+	var markers: Array[Dictionary] = MissionManager.get_mission_markers_for_sector(GameStateManager.current_sector_id)
+	for marker_data in markers:
+		var marker_position_variant: Variant = marker_data.get("position", null)
+		if not (marker_position_variant is Vector2):
+			continue
+		var marker_position: Vector2 = _world_to_map_position(marker_position_variant, center, map_radius, jitter_strength)
+		var points: PackedVector2Array = PackedVector2Array([
+			marker_position + Vector2(0.0, -4.0),
+			marker_position + Vector2(4.0, 0.0),
+			marker_position + Vector2(0.0, 4.0),
+			marker_position + Vector2(-4.0, 0.0),
+		])
+		draw_colored_polygon(points, Color(1.0, 0.92, 0.26, 0.9))
+		var outline: PackedVector2Array = points.duplicate()
+		outline.append(points[0])
+		draw_polyline(outline, Color(1.0, 1.0, 0.76, 0.95), 1.0, true)
 
 
 func _world_to_map_position(world_position: Vector2, center: Vector2, map_radius: float, jitter_strength: float) -> Vector2:

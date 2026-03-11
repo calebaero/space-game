@@ -76,6 +76,7 @@ func sell_cargo(item_id: StringName, quantity: int, station_id: StringName) -> i
 
 	var earned: int = unit_price * amount_to_sell
 	GameStateManager.credits += earned
+	MissionManager.report_item_sold(item_id, amount_to_sell, station_id)
 	AudioManager.play_sfx(&"market_sell", Vector2.ZERO)
 	return earned
 

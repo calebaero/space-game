@@ -13,6 +13,7 @@ signal player_docked(station_id: StringName)
 @onready var boss_health_bar: CanvasLayer = %BossHealthBar
 @onready var game_over_screen: CanvasLayer = %GameOverScreen
 @onready var wreck_recovery_panel: CanvasLayer = %WreckRecoveryPanel
+@onready var victory_overlay: CanvasLayer = %VictoryOverlay
 @onready var warp_transition_overlay: CanvasLayer = %WarpTransitionOverlay
 
 var _active_sector_scene: Node2D = null
@@ -23,6 +24,8 @@ var _is_map_open: bool = false
 var _is_warp_transitioning: bool = false
 var _is_game_over_open: bool = false
 var _is_wreck_panel_open: bool = false
+var _mission_position_report_accumulator: float = 0.0
+var _active_boss_ship: Node = null
 
 
 func _ready() -> void:
@@ -57,11 +60,30 @@ func _ready() -> void:
 		boss_health_bar.call("end_encounter")
 	game_over_screen.visible = false
 	wreck_recovery_panel.visible = false
+	victory_overlay.visible = false
 	if warp_transition_overlay.has_method("clear_overlay"):
 		warp_transition_overlay.call("clear_overlay")
+	if not MissionManager.mission_state_changed.is_connected(_on_mission_state_changed):
+		MissionManager.mission_state_changed.connect(_on_mission_state_changed)
+	if not MissionManager.mission_markers_changed.is_connected(_on_mission_markers_changed):
+		MissionManager.mission_markers_changed.connect(_on_mission_markers_changed)
+	if not MissionManager.victory_sequence_requested.is_connected(_on_victory_sequence_requested):
+		MissionManager.victory_sequence_requested.connect(_on_victory_sequence_requested)
 
 	get_tree().paused = false
+	set_process(true)
 	GameStateManager.emit_queued_new_game_request_if_any()
+
+
+func _process(delta: float) -> void:
+	if _active_player_ship == null or not is_instance_valid(_active_player_ship):
+		return
+	if get_tree().paused:
+		return
+	_mission_position_report_accumulator += delta
+	if _mission_position_report_accumulator >= 0.12:
+		_mission_position_report_accumulator = 0.0
+		MissionManager.report_player_position(GameStateManager.current_sector_id, _active_player_ship.global_position)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -80,6 +102,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _on_new_game_requested(starting_sector_id: StringName) -> void:
+	MissionManager.reset_for_new_game()
 	_is_game_over_open = false
 	_is_wreck_panel_open = false
 	var starting_sector_data: Dictionary = GalaxyManager.start_new_game(starting_sector_id)
@@ -126,6 +149,9 @@ func load_sector(sector_data: Dictionary, arrival_from_sector_id: StringName) ->
 	if loaded_sector_id != &"":
 		GameStateManager.set_current_sector(loaded_sector_id)
 		GalaxyManager.set_current_sector(loaded_sector_id)
+		MissionManager.report_sector_entered(loaded_sector_id)
+	_refresh_mission_markers()
+	_spawn_pending_mission_encounters(loaded_sector_id, sector_data, true)
 
 
 func _spawn_player_for_sector(sector_scene: Node2D, spawn_position: Vector2) -> void:
@@ -216,6 +242,7 @@ func _on_player_station_dock_requested(station_node: Node) -> void:
 	GameStateManager.docked_station_id = GameStateManager.last_docked_station_id
 	player_docked.emit(GameStateManager.docked_station_id)
 	SaveManager.autosave()
+	MissionManager.report_player_docked(GameStateManager.last_docked_station_id)
 
 	if is_instance_valid(_active_player_ship):
 		_active_player_ship.set_controls_enabled(false)
@@ -399,6 +426,7 @@ func _on_game_over_continue_requested() -> void:
 		_active_player_ship.set_controls_enabled(true)
 
 	UIManager.show_toast("Respawn complete. Return to your wreck beacon to recover cargo.", &"info")
+	_refresh_mission_markers()
 
 
 func _on_wreck_recovery_requested(wreck_beacon: Node) -> void:
@@ -517,3 +545,117 @@ func _bind_boss_triggers() -> void:
 func _on_boss_encounter_triggered(boss_name: String, boss_max_health: float, total_phases: int) -> void:
 	if boss_health_bar.has_method("begin_encounter"):
 		boss_health_bar.call("begin_encounter", boss_name, boss_max_health, total_phases)
+
+
+func _on_mission_state_changed() -> void:
+	_refresh_mission_markers()
+	_spawn_pending_mission_encounters(GameStateManager.current_sector_id, GalaxyManager.get_current_sector_data(), false)
+
+
+func _on_mission_markers_changed() -> void:
+	_refresh_mission_markers()
+
+
+func _refresh_mission_markers() -> void:
+	if _active_sector_scene == null or not is_instance_valid(_active_sector_scene):
+		return
+	if not _active_sector_scene.has_method("set_mission_markers"):
+		return
+	var markers: Array[Dictionary] = MissionManager.get_mission_markers_for_sector(GameStateManager.current_sector_id)
+	_active_sector_scene.call("set_mission_markers", markers)
+
+
+func _on_victory_sequence_requested(lines: PackedStringArray) -> void:
+	if victory_overlay != null and is_instance_valid(victory_overlay) and victory_overlay.has_method("show_sequence"):
+		victory_overlay.call("show_sequence", lines)
+	else:
+		for line in lines:
+			if line.is_empty():
+				continue
+			UIManager.show_toast(line, &"success")
+	UIManager.show_toast("Post-game content unlocked", &"success")
+
+
+func _spawn_pending_mission_encounters(sector_id: StringName, sector_data: Dictionary, include_elites: bool) -> void:
+	if _active_sector_scene == null or not is_instance_valid(_active_sector_scene):
+		return
+
+	_active_boss_ship = null
+	if boss_health_bar.has_method("end_encounter"):
+		boss_health_bar.call("end_encounter")
+
+	if include_elites and _active_sector_scene.has_method("spawn_runtime_enemy"):
+		var elite_spawns: Array[Dictionary] = MissionManager.get_pending_elite_spawns_for_sector(sector_id)
+		for spawn_data in elite_spawns:
+			var elite_enemy: Node = _active_sector_scene.call("spawn_runtime_enemy", spawn_data)
+			if elite_enemy == null:
+				continue
+			elite_enemy.set_meta("mission_tag", String(spawn_data.get("mission_tag", "")))
+
+	var pending_boss: Dictionary = MissionManager.get_pending_boss_spawn_for_sector(sector_id)
+	if pending_boss.is_empty():
+		return
+	if not _active_sector_scene.has_method("spawn_runtime_boss"):
+		return
+
+	var spawn_position: Vector2 = _pick_boss_spawn_position(sector_data)
+	var boss_ship: Node = _active_sector_scene.call("spawn_runtime_boss", {
+		"boss_data": pending_boss.get("boss_data", {}),
+		"mission_id": String(pending_boss.get("mission_id", "")),
+		"objective_id": String(pending_boss.get("objective_id", "")),
+		"position": spawn_position,
+	})
+	if boss_ship == null:
+		return
+
+	_active_boss_ship = boss_ship
+	if boss_ship.has_signal("boss_intro_requested") and not boss_ship.boss_intro_requested.is_connected(_on_boss_intro_requested):
+		boss_ship.boss_intro_requested.connect(_on_boss_intro_requested)
+	if boss_ship.has_signal("boss_health_changed") and not boss_ship.boss_health_changed.is_connected(_on_boss_health_changed):
+		boss_ship.boss_health_changed.connect(_on_boss_health_changed)
+	if boss_ship.has_signal("boss_defeated") and not boss_ship.boss_defeated.is_connected(_on_boss_defeated):
+		boss_ship.boss_defeated.connect(_on_boss_defeated)
+
+	MissionManager.register_spawned_boss(
+		StringName(String(pending_boss.get("mission_id", ""))),
+		StringName(String(pending_boss.get("objective_id", ""))),
+		StringName(String(pending_boss.get("boss_id", ""))),
+		boss_ship
+	)
+	UIManager.show_toast("%s detected" % String((pending_boss.get("boss_data", {}) as Dictionary).get("name", "Boss")), &"danger")
+
+
+func _pick_boss_spawn_position(sector_data: Dictionary) -> Vector2:
+	var arena_data: Dictionary = sector_data.get("boss_arena", {})
+	if not arena_data.is_empty():
+		var arena_position: Variant = arena_data.get("position", null)
+		if arena_position is Vector2:
+			return arena_position
+	for patrol_variant in sector_data.get("enemy_patrols", []):
+		if patrol_variant is not Dictionary:
+			continue
+		var patrol_center: Variant = patrol_variant.get("center", null)
+		if patrol_center is Vector2:
+			return patrol_center
+	return Vector2(0.0, -1200.0)
+
+
+func _on_boss_intro_requested(boss_name: String, max_health: float, total_phases: int) -> void:
+	if boss_health_bar.has_method("begin_encounter"):
+		boss_health_bar.call("begin_encounter", boss_name, max_health, total_phases)
+
+
+func _on_boss_health_changed(current_health: float, max_health: float, phase_index: int, total_phases: int) -> void:
+	if not boss_health_bar.visible and boss_health_bar.has_method("begin_encounter") and _active_boss_ship != null and is_instance_valid(_active_boss_ship):
+		var boss_name: String = String(_active_boss_ship.get("display_name"))
+		if boss_name.is_empty():
+			boss_name = "BOSS"
+		boss_health_bar.call("begin_encounter", boss_name.to_upper(), max_health, total_phases)
+	if boss_health_bar.has_method("update_encounter"):
+		boss_health_bar.call("update_encounter", current_health, phase_index)
+
+
+func _on_boss_defeated(_boss_id: StringName) -> void:
+	if boss_health_bar.has_method("end_encounter"):
+		boss_health_bar.call("end_encounter")
+	_active_boss_ship = null
