@@ -56,6 +56,11 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Resume"
 
+[node name="SaveButton" type="Button" parent="CenterContainer/Panel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Save (Docked Only)"
+
 [node name="SettingsButton" type="Button" parent="CenterContainer/Panel/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2

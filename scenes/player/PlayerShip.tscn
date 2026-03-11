@@ -19,8 +19,46 @@ polygon = PackedVector2Array(20, 0, -14, -12, -7, 0, -14, 12)
 color = Color(0.88, 0.9, 0.95, 1)
 
 [node name="EngineGlow" type="Polygon2D" parent="."]
+unique_name_in_owner = true
 polygon = PackedVector2Array(-16, 0, -32, -7, -32, 7)
 color = Color(0.35, 0.72, 1, 0.78)
+
+[node name="EngineTrail" type="CPUParticles2D" parent="."]
+unique_name_in_owner = true
+z_index = -1
+position = Vector2(-20, 0)
+emitting = false
+amount = 40
+lifetime = 0.32
+one_shot = false
+speed_scale = 1.0
+explosiveness = 0.85
+direction = Vector2(-1, 0)
+spread = 18.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 38.0
+initial_velocity_max = 90.0
+scale_amount_min = 0.35
+scale_amount_max = 1.0
+color = Color(0.35, 0.72, 1, 0.7)
+
+[node name="BoostSpeedLines" type="CPUParticles2D" parent="."]
+unique_name_in_owner = true
+z_index = -2
+emitting = false
+amount = 52
+lifetime = 0.24
+one_shot = false
+speed_scale = 1.0
+explosiveness = 0.8
+direction = Vector2(-1, 0)
+spread = 22.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 360.0
+initial_velocity_max = 540.0
+scale_amount_min = 0.45
+scale_amount_max = 1.15
+color = Color(0.62, 0.9, 1, 0.44)
 
 [node name="MiningBeam" type="Line2D" parent="."]
 unique_name_in_owner = true

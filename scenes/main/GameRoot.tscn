@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/core/GameRoot.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="2"]
@@ -11,6 +11,9 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/WreckRecoveryPanel.tscn" id="9"]
 [ext_resource type="PackedScene" path="res://scenes/ui/TooltipPanel.tscn" id="10"]
 [ext_resource type="PackedScene" path="res://scenes/ui/VictoryOverlay.tscn" id="11"]
+[ext_resource type="PackedScene" path="res://scenes/ui/SettingsMenu.tscn" id="12"]
+[ext_resource type="PackedScene" path="res://scenes/ui/TutorialOverlay.tscn" id="13"]
+[ext_resource type="PackedScene" path="res://scenes/ui/TutorialStartPrompt.tscn" id="14"]
 
 [node name="GameRoot" type="Node"]
 script = ExtResource("1")
@@ -45,6 +48,15 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 
 [node name="TooltipPanel" parent="PersistentUI" instance=ExtResource("10")]
+unique_name_in_owner = true
+
+[node name="SettingsMenu" parent="PersistentUI" instance=ExtResource("12")]
+unique_name_in_owner = true
+
+[node name="TutorialOverlay" parent="PersistentUI" instance=ExtResource("13")]
+unique_name_in_owner = true
+
+[node name="TutorialStartPrompt" parent="PersistentUI" instance=ExtResource("14")]
 unique_name_in_owner = true
 
 [node name="VictoryOverlay" parent="PersistentUI" instance=ExtResource("11")]

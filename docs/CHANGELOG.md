@@ -1,5 +1,50 @@
 # Changelog — Space Explorer
 
+## Phase 08
+- Implemented full save/load backbone in `SaveManager` with slot files and metadata:
+  - 3 slot support (`user://saves/slot_1.json` .. `slot_3.json`)
+  - per-save metadata (slot, timestamp, sector, credits, playtime)
+  - most-recent-slot continue flow for main menu
+  - corrupted-save handling with safe failure/toast feedback
+- Implemented full runtime state serialization/restoration wiring:
+  - `GameStateManager`, `MissionManager`, `GalaxyManager`, and `EconomyManager` now export/import save dictionaries.
+  - Restores progression flags, discovered sectors, missions/contracts, upgrades/loadout, cargo/relic inventory, wreck beacon, and economy market seed/state.
+  - Resume flow now restores into last docked station sector and recalculates runtime state immediately after load.
+- Added autosave and manual-save integration:
+  - autosave on dock, mission completion, mission turn-in, tutorial completion/skip, and galaxy unlock.
+  - manual save request supported from station and pause UI (pause save restricted to docked state).
+- Added persistent settings system:
+  - new `SettingsMenu` scene + script for Audio/Display/Controls pages.
+  - settings persisted to `user://settings.json` and applied at startup.
+  - supports master/music/sfx volume, fullscreen toggle, VSync toggle, screen-shake intensity, and reset-to-defaults.
+- Added tutorial onboarding overlay flow (`TutorialOverlay`) tied to the First Steps mission:
+  - 10 guided steps from thrust/brake/boost through scan/mine/loot/dock/sell.
+  - Esc skip support and tutorial completion flag persistence.
+  - Added market-tab tutorial highlight handoff in station menu for sell-cargo step readability.
+- Expanded audio manager from stub to functional runtime system:
+  - procedural placeholder SFX/music stream generation.
+  - dual-player crossfade for music transitions.
+  - exploration vs combat context switching with combat release timer.
+  - engine loop state API with speed/boost pitch and gain behavior.
+- Applied broad gameplay audio hooks across menu, world, mission, station, combat, and save flows.
+- Added Phase 08 HUD/gameplay readability and polish updates:
+  - smoothed hull/shield/boost bar interpolation.
+  - shield/hull hit flashes + critical hull vignette behavior.
+  - waypoint arrow + distance projection for mission objective guidance.
+  - cargo-full pulse emphasis.
+  - kill-confirmed floating `+credits` feedback at enemy death positions.
+- Added screen-shake accessibility integration:
+  - player camera shake now scales by settings-driven `screen_shake_intensity`.
+- Added placeholder VFX polish in `PlayerShip`:
+  - engine trail particles and boost speed-line particles.
+  - dynamic engine glow intensity tied to thrust/boost state.
+- Added externalized balance resource:
+  - new `scripts/core/BalanceConfig.gd`
+  - new `data/balance/balance_config.tres`
+  - `ContentDatabase` now loads and exposes balance config data
+  - death penalty, repair cost, and contract reward ranges now read from balance config-backed values.
+- Updated phase labeling text in UI debug surfaces (Main Menu subtitle, Sector debug label) for Phase 08 consistency.
+
 ## Phase 07
 - Implemented linear ship upgrade progression (6 paths x 3 tiers) through data-driven definitions:
   - Added `data/items/upgrades.tres` with tier costs, item requirements, and stat bonus modes.

@@ -182,6 +182,38 @@
 21. Confirm loadout and upgrades persist across sector transitions and repeated docking/undocking.
 22. Hover module entries in station menu and verify tooltip includes current vs candidate comparison context.
 
+## Phase 08 Manual Checklist (Stability, Save/Load, Settings, Tutorial Polish)
+
+1. Launch the project and confirm Main Menu loads without script/resource errors.
+2. Verify `Continue` is disabled if no save files exist; create a save and verify it becomes enabled.
+3. Start a new game, dock once, and confirm autosave trigger occurs (toast + `user://saves/slot_1.json` created).
+4. While docked, open station menu and click `Save`; confirm manual save success toast.
+5. Pause while docked, click `Save`, and confirm pause-save path succeeds.
+6. Pause while undocked, click `Save`, and confirm warning appears (manual save blocked while undocked).
+7. Quit to Main Menu, click `Continue`, and verify load resumes from last docked station sector.
+8. Verify credits, cargo, upgrades, equipped modules, missions, discovered sectors, and wreck state are preserved after load.
+9. Trigger a mission objective completion and confirm autosave occurs on mission complete.
+10. Trigger a mission turn-in and confirm autosave occurs after rewards are applied.
+11. Craft a galaxy unlock item and confirm unlock feedback plus autosave on unlock.
+12. Corrupt a slot JSON manually and attempt load; confirm `Save corrupted` toast and no crash.
+13. Open `Settings` from Main Menu; adjust Master/Music/SFX sliders and close.
+14. Relaunch game and verify audio settings persist from `user://settings.json`.
+15. In settings Display tab, toggle Fullscreen and VSync and confirm values persist after restart.
+16. Set Screen Shake to `0%`, enter combat, and verify camera shake is effectively disabled.
+17. Set Screen Shake back to `100%`, re-enter combat, and verify shake intensity returns.
+18. Start/accept `First Steps` and verify tutorial overlay appears at center-bottom with step counter.
+19. Complete tutorial steps 1–8 (movement/boost/scan/mine/loot/dock) and confirm auto-advance behavior.
+20. At tutorial step 9, verify Market tab highlight appears in station menu and selling cargo advances tutorial.
+21. Press `Esc` during tutorial and verify skip flow works and tutorial flag persists.
+22. In-flight HUD validation:
+   - hull/shield/boost bars animate smoothly
+   - hull critical state pulses with vignette
+   - cargo-full pulses orange
+   - waypoint arrow + distance text point to off-screen objectives.
+23. Destroy enemies and verify floating `+credits` kill-confirmed text appears near death location.
+24. Verify exploration music transitions to combat on aggro and returns to exploration after combat cool-down.
+25. Validate all 9 sectors still load and remain traversable with no regressions to docking, warp flow, missions, or bosses.
+
 ## Deferred Runtime Checks (Future Phases)
 - Full mission board logic and station service implementation.
 - Upgrade/module purchasing and equipment compare flows.

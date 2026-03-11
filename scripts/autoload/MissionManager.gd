@@ -5,6 +5,7 @@ signal mission_state_changed
 signal mission_progressed(mission_id: StringName)
 signal mission_completed(mission_id: StringName)
 signal mission_turned_in(mission_id: StringName)
+signal mission_accepted(mission_id: StringName)
 signal tracked_mission_changed(mission_id: StringName)
 signal mission_markers_changed
 signal boss_spawn_requested(boss_id: StringName, mission_id: StringName, objective_id: StringName, sector_id: StringName)
@@ -144,6 +145,91 @@ func get_active_missions() -> Array[Dictionary]:
 
 func get_completed_mission_ids() -> Array[String]:
 	return completed_mission_ids.duplicate()
+
+
+func get_save_state() -> Dictionary:
+	var serialized_contract_board: Dictionary = {}
+	for station_id_variant in contract_board.keys():
+		var station_id: String = String(station_id_variant)
+		if station_id.is_empty():
+			continue
+		serialized_contract_board[station_id] = _serialize_mission_array(contract_board.get(station_id_variant, []))
+	return {
+		"active_missions": _serialize_mission_array(active_missions),
+		"completed_mission_ids": completed_mission_ids.duplicate(),
+		"story_flags": story_flags.duplicate(true),
+		"contract_board": serialized_contract_board,
+		"available_story_mission_ids": _available_story_mission_ids.duplicate(),
+		"tracked_mission_id": String(_tracked_mission_id),
+		"mission_counter": _mission_counter,
+		"last_contract_generation_time": _last_contract_generation_time.duplicate(true),
+		"spawned_boss_objectives": _spawned_boss_objectives.duplicate(true),
+	}
+
+
+func apply_save_state(state: Dictionary) -> void:
+	active_missions = _deserialize_mission_array(state.get("active_missions", []))
+	completed_mission_ids = []
+	for mission_id_variant in Array(state.get("completed_mission_ids", [])):
+		var mission_id: String = String(mission_id_variant)
+		if mission_id.is_empty():
+			continue
+		if not completed_mission_ids.has(mission_id):
+			completed_mission_ids.append(mission_id)
+
+	story_flags = {}
+	for flag_key_variant in Dictionary(state.get("story_flags", {})).keys():
+		var flag_key: String = String(flag_key_variant)
+		if flag_key.is_empty():
+			continue
+		story_flags[flag_key] = bool((state.get("story_flags", {}) as Dictionary).get(flag_key_variant, false))
+		GameStateManager.set_progression_flag(StringName(flag_key), bool(story_flags[flag_key]))
+
+	contract_board = {}
+	var saved_contract_board: Dictionary = state.get("contract_board", {})
+	for station_id_variant in saved_contract_board.keys():
+		var station_id: String = String(station_id_variant)
+		if station_id.is_empty():
+			continue
+		contract_board[station_id] = _deserialize_mission_array(saved_contract_board.get(station_id_variant, []))
+
+	_available_story_mission_ids = []
+	for story_id_variant in Array(state.get("available_story_mission_ids", [])):
+		var story_id: String = String(story_id_variant)
+		if story_id.is_empty():
+			continue
+		if not _available_story_mission_ids.has(story_id):
+			_available_story_mission_ids.append(story_id)
+
+	if _available_story_mission_ids.is_empty():
+		for template in _get_story_templates_sorted():
+			var template_id: String = String(template.get("id", ""))
+			if template_id.is_empty():
+				continue
+			if completed_mission_ids.has(template_id):
+				continue
+			var is_active: bool = false
+			for mission_variant in active_missions:
+				if mission_variant is not Dictionary:
+					continue
+				if String((mission_variant as Dictionary).get("template_id", "")) == template_id:
+					is_active = true
+					break
+			if not is_active:
+				_available_story_mission_ids.append(template_id)
+			break
+
+	_tracked_mission_id = StringName(String(state.get("tracked_mission_id", "")))
+	if _tracked_mission_id != &"" and _find_active_mission_index(_tracked_mission_id) < 0:
+		_assign_fallback_tracked_mission()
+	_mission_counter = max(int(state.get("mission_counter", active_missions.size())), active_missions.size())
+	_last_contract_generation_time = Dictionary(state.get("last_contract_generation_time", {})).duplicate(true)
+	_spawned_boss_objectives = Dictionary(state.get("spawned_boss_objectives", {})).duplicate(true)
+	_active_boss_nodes.clear()
+
+	mission_state_changed.emit()
+	mission_markers_changed.emit()
+	tracked_mission_changed.emit(_tracked_mission_id)
 
 
 func accept_contract(station_id: StringName, mission_id: StringName) -> Dictionary:
@@ -502,7 +588,7 @@ func report_player_position(sector_id: StringName, player_position: Vector2) -> 
 				continue
 			if StringName(String(objective.get("sector_id", ""))) != sector_id:
 				continue
-			var point: Vector2 = objective.get("world_position", Vector2.ZERO)
+			var point: Vector2 = _coerce_vector2(objective.get("world_position", Vector2.ZERO))
 			if point == Vector2.ZERO:
 				continue
 			var radius: float = float(objective.get("radius", 180.0))
@@ -785,6 +871,8 @@ func _activate_mission_instance(instance: Dictionary) -> Dictionary:
 			continue
 		GameStateManager.add_cargo(item_id, quantity)
 
+	mission_accepted.emit(StringName(mission_id))
+	AudioManager.play_sfx(&"mission_accept", Vector2.ZERO)
 	mission_state_changed.emit()
 	mission_markers_changed.emit()
 	return {"success": true, "message": "Mission accepted.", "mission": instance}
@@ -801,6 +889,8 @@ func _try_complete_mission(mission_index: int) -> void:
 		active_missions[mission_index] = mission
 		mission_completed.emit(StringName(String(mission.get("id", ""))))
 		UIManager.show_toast("Mission complete: %s" % String(mission.get("title", "Mission")), &"success")
+		AudioManager.play_sfx(&"mission_complete", Vector2.ZERO)
+		SaveManager.autosave()
 		if bool(mission.get("auto_turn_in", false)):
 			var mission_id: StringName = StringName(String(mission.get("id", "")))
 			var turn_in_station: StringName = StringName(String(mission.get("turn_in_station_id", mission.get("source_station_id", ""))))
@@ -897,8 +987,8 @@ func _resolve_objective_sector_id(objective: Dictionary) -> StringName:
 
 func _resolve_objective_world_position(objective: Dictionary, sector_id: StringName) -> Vector2:
 	if objective.has("world_position"):
-		var objective_pos: Variant = objective.get("world_position")
-		if objective_pos is Vector2:
+		var objective_pos: Vector2 = _coerce_vector2(objective.get("world_position"))
+		if objective_pos != Vector2.ZERO:
 			return objective_pos
 
 	var objective_type: String = String(objective.get("type", ""))
@@ -1094,7 +1184,7 @@ func _build_contract_offer(template: Dictionary, station_data: Dictionary) -> Di
 	var source_sector: Dictionary = ContentDatabase.get_sector(source_sector_id)
 	var galaxy_id: String = String(source_sector.get("galaxy_id", "galaxy_1"))
 
-	var reward_range: Vector2i = GALAXY_REWARD_RANGES.get(galaxy_id, Vector2i(100, 300))
+	var reward_range: Vector2i = _get_reward_range_for_galaxy(galaxy_id)
 	var reward_scale: float = float(template.get("reward_scale", 1.0))
 	var progression_scale: float = _get_progression_difficulty_scale()
 	var base_reward: int = _rng.randi_range(reward_range.x, reward_range.y)
@@ -1232,6 +1322,19 @@ func _build_contract_offer(template: Dictionary, station_data: Dictionary) -> Di
 			return {}
 
 	return mission
+
+
+func _get_reward_range_for_galaxy(galaxy_id: String) -> Vector2i:
+	var fallback: Vector2i = GALAXY_REWARD_RANGES.get(galaxy_id, Vector2i(100, 300))
+	var contract_config: Dictionary = ContentDatabase.get_balance_config_data().get("contract_rewards", {})
+	if contract_config.is_empty() or not contract_config.has(galaxy_id):
+		return fallback
+	var range_data: Dictionary = contract_config.get(galaxy_id, {})
+	var min_value: int = int(range_data.get("min", fallback.x))
+	var max_value: int = int(range_data.get("max", fallback.y))
+	if max_value < min_value:
+		max_value = min_value
+	return Vector2i(min_value, max_value)
 
 
 func _instantiate_mission_from_template(template: Dictionary, is_story: bool) -> Dictionary:
@@ -1548,6 +1651,123 @@ func _clone_mission_array(source: Variant) -> Array[Dictionary]:
 			continue
 		result.append((entry_variant as Dictionary).duplicate(true))
 	return result
+
+
+func _serialize_mission_array(source: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if source is not Array:
+		return result
+	for entry_variant in source:
+		if entry_variant is not Dictionary:
+			continue
+		result.append(_serialize_variant(entry_variant) as Dictionary)
+	return result
+
+
+func _serialize_variant(value: Variant) -> Variant:
+	if value is Vector2:
+		var vector_value: Vector2 = value
+		return {
+			"_type": "Vector2",
+			"x": vector_value.x,
+			"y": vector_value.y,
+		}
+	if value is Vector2i:
+		var vector2i_value: Vector2i = value
+		return {
+			"_type": "Vector2i",
+			"x": vector2i_value.x,
+			"y": vector2i_value.y,
+		}
+	if value is Array:
+		var result_array: Array = []
+		for nested_variant in value:
+			result_array.append(_serialize_variant(nested_variant))
+		return result_array
+	if value is Dictionary:
+		var dict_value: Dictionary = value
+		var result_dict: Dictionary = {}
+		for key_variant in dict_value.keys():
+			result_dict[key_variant] = _serialize_variant(dict_value[key_variant])
+		return result_dict
+	return value
+
+
+func _deserialize_mission_array(source: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if source is not Array:
+		return result
+	for entry_variant in source:
+		if entry_variant is not Dictionary:
+			continue
+		result.append(_deserialize_variant(entry_variant) as Dictionary)
+	return result
+
+
+func _deserialize_variant(value: Variant) -> Variant:
+	if value is Array:
+		var result_array: Array = []
+		for nested_variant in value:
+			result_array.append(_deserialize_variant(nested_variant))
+		return result_array
+	if value is Dictionary:
+		var dict_value: Dictionary = value
+		var type_id: String = String(dict_value.get("_type", ""))
+		if type_id == "Vector2":
+			return Vector2(float(dict_value.get("x", 0.0)), float(dict_value.get("y", 0.0)))
+		if type_id == "Vector2i":
+			return Vector2i(int(dict_value.get("x", 0)), int(dict_value.get("y", 0)))
+		if dict_value.has("x") and dict_value.has("y") and dict_value.size() <= 4:
+			return Vector2(float(dict_value.get("x", 0.0)), float(dict_value.get("y", 0.0)))
+		if dict_value.has("X") and dict_value.has("Y") and dict_value.size() <= 4:
+			return Vector2(float(dict_value.get("X", 0.0)), float(dict_value.get("Y", 0.0)))
+		var result_dict: Dictionary = {}
+		for key_variant in dict_value.keys():
+			result_dict[key_variant] = _deserialize_variant(dict_value[key_variant])
+		return result_dict
+	if value is String:
+		var parsed_vector: Vector2 = _parse_vector2_string(String(value))
+		if is_finite(parsed_vector.x) and is_finite(parsed_vector.y):
+			return parsed_vector
+	return value
+
+
+func _coerce_vector2(value: Variant) -> Vector2:
+	if value is Vector2:
+		return value
+	if value is Vector2i:
+		var vector2i_value: Vector2i = value
+		return Vector2(float(vector2i_value.x), float(vector2i_value.y))
+	if value is Dictionary:
+		var dict_value: Dictionary = value
+		if dict_value.has("x") and dict_value.has("y"):
+			return Vector2(float(dict_value.get("x", 0.0)), float(dict_value.get("y", 0.0)))
+		if dict_value.has("X") and dict_value.has("Y"):
+			return Vector2(float(dict_value.get("X", 0.0)), float(dict_value.get("Y", 0.0)))
+		if String(dict_value.get("_type", "")) == "Vector2" or String(dict_value.get("_type", "")) == "Vector2i":
+			return Vector2(float(dict_value.get("x", 0.0)), float(dict_value.get("y", 0.0)))
+	if value is String:
+		var parsed: Vector2 = _parse_vector2_string(String(value))
+		if is_finite(parsed.x) and is_finite(parsed.y):
+			return parsed
+	return Vector2.ZERO
+
+
+func _parse_vector2_string(raw_value: String) -> Vector2:
+	var text: String = raw_value.strip_edges()
+	if text.length() < 5:
+		return Vector2(INF, INF)
+	if not text.begins_with("(") or not text.ends_with(")"):
+		return Vector2(INF, INF)
+	var inner: String = text.substr(1, text.length() - 2)
+	var parts: PackedStringArray = inner.split(",", false, 2)
+	if parts.size() != 2:
+		return Vector2(INF, INF)
+	var x_text: String = String(parts[0]).strip_edges()
+	var y_text: String = String(parts[1]).strip_edges()
+	if not x_text.is_valid_float() or not y_text.is_valid_float():
+		return Vector2(INF, INF)
+	return Vector2(x_text.to_float(), y_text.to_float())
 
 
 func _generate_mission_instance_id(prefix: String) -> String:

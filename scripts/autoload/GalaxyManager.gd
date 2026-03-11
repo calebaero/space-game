@@ -37,6 +37,34 @@ func initialize_unlocks_for_new_game() -> void:
 		unlocked_galaxies[galaxy_id] = unlock_requirement == "start"
 
 
+func get_save_state() -> Dictionary:
+	return {
+		"unlocked_galaxies": unlocked_galaxies.duplicate(true),
+		"current_sector_id": String(current_sector_id),
+		"current_galaxy_id": String(current_galaxy_id),
+	}
+
+
+func apply_save_state(state: Dictionary) -> void:
+	initialize_unlocks_for_new_game()
+	for galaxy_id_variant in Dictionary(state.get("unlocked_galaxies", {})).keys():
+		var galaxy_id: String = String(galaxy_id_variant)
+		if galaxy_id.is_empty():
+			continue
+		if not bool((state.get("unlocked_galaxies", {}) as Dictionary).get(galaxy_id_variant, false)):
+			continue
+		unlocked_galaxies[galaxy_id] = true
+
+	sync_unlocks_from_progression_flags()
+
+	var saved_sector_id: StringName = StringName(String(state.get("current_sector_id", "")))
+	if saved_sector_id == &"":
+		saved_sector_id = GameStateManager.current_sector_id
+	if saved_sector_id == &"":
+		saved_sector_id = get_starting_sector_id()
+	set_current_sector(saved_sector_id)
+
+
 func get_starting_sector_id() -> StringName:
 	return ContentDatabase.get_starting_sector_id()
 

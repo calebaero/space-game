@@ -2,6 +2,9 @@ extends CharacterBody2D
 class_name PlayerShip
 
 signal boost_activated
+signal scanner_pulsed(scan_range: float)
+signal mining_started(node: Node2D)
+signal mining_completed(resource_id: StringName, quantity: int)
 signal station_dock_requested(station_node: Node)
 signal warp_gate_requested(destination_sector_id: StringName, source_gate_id: StringName)
 signal player_destroyed(death_position: Vector2)
@@ -61,6 +64,9 @@ const PROJECTILE_SCENE: PackedScene = preload("res://scenes/world/Projectile.tsc
 @onready var interaction_area: Area2D = $InteractionArea
 @onready var mining_beam: Line2D = %MiningBeam
 @onready var mining_sparks: CPUParticles2D = %MiningSparks
+@onready var engine_glow: Polygon2D = %EngineGlow
+@onready var engine_trail: CPUParticles2D = %EngineTrail
+@onready var boost_speed_lines: CPUParticles2D = %BoostSpeedLines
 
 var angular_velocity: float = 0.0
 var boost_energy: float = 100.0
@@ -122,6 +128,8 @@ func _ready() -> void:
 
 	mining_beam.visible = false
 	mining_sparks.emitting = false
+	engine_trail.emitting = false
+	boost_speed_lines.emitting = false
 	_ensure_repair_drone_visual()
 
 	if not GameStateManager.player_damage_applied.is_connected(_on_player_damage_applied):
@@ -160,8 +168,10 @@ func _physics_process(delta: float) -> void:
 		_update_scanner_state(delta)
 		_clear_target_lock()
 		_update_utility_state(delta)
+		AudioManager.set_engine_state(false, 0.0, false)
 
 	_update_shield_recharge(delta)
+	_update_engine_audio()
 	move_and_slide()
 	_handle_slide_hazard_collisions()
 	_update_camera(delta)
@@ -227,6 +237,7 @@ func apply_projectile_damage(amount: float, _projectile: Node = null) -> void:
 			return
 	GameStateManager.apply_damage(amount)
 	_combat_state_remaining = combat_state_duration
+	AudioManager.report_combat_activity()
 	if _projectile != null and _projectile.has_method("get_shield_disable_duration"):
 		var disable_duration: float = float(_projectile.call("get_shield_disable_duration"))
 		if disable_duration > 0.0:
@@ -483,6 +494,8 @@ func _fire_weapon_from_slot(slot_name: StringName, is_secondary: bool) -> bool:
 
 	var forward: Vector2 = Vector2.RIGHT.rotated(rotation)
 	var weapon_id: StringName = GameStateManager.get_equipped_weapon_id(slot_name)
+	if weapon_id == &"" and slot_name == &"primary":
+		weapon_id = &"pulse_laser"
 	projectile.global_position = global_position + forward * 24.0
 	get_parent().add_child(projectile)
 	var payload_data: Dictionary = {
@@ -514,6 +527,8 @@ func _fire_weapon_from_slot(slot_name: StringName, is_secondary: bool) -> bool:
 		_primary_fire_cooldown_remaining = maxf(fire_rate, 0.05)
 
 	_combat_state_remaining = combat_state_duration
+	AudioManager.play_sfx(StringName("weapon_fire_%s" % String(weapon_id)), global_position)
+	AudioManager.report_combat_activity()
 	return true
 
 
@@ -756,6 +771,7 @@ func _try_activate_boost() -> void:
 	_boost_cooldown_remaining = boost_cooldown
 	add_trauma(0.2)
 	boost_activated.emit()
+	AudioManager.play_sfx(&"engine_boost", global_position)
 
 
 func _update_scanner_state(delta: float) -> void:
@@ -786,6 +802,8 @@ func _try_activate_scanner() -> void:
 	_scanner_visual_remaining = scanner_visual_duration
 	_scanner_visual_range = scan_range
 	_run_scanner_pulse(scan_range)
+	scanner_pulsed.emit(scan_range)
+	AudioManager.play_sfx(&"scanner_pulse", global_position)
 	queue_redraw()
 
 
@@ -846,14 +864,19 @@ func _update_mining(delta: float) -> void:
 
 	var mined_quantity: int = 0
 	var mined_resource_name: String = "Resource"
+	var mined_resource_id: StringName = &""
 	if _active_mining_node.has_method("get_yield_amount"):
 		mined_quantity = int(_active_mining_node.call("get_yield_amount"))
 	if _active_mining_node.has_method("get_resource_name"):
 		mined_resource_name = String(_active_mining_node.call("get_resource_name"))
+	if _active_mining_node.has_method("get_resource_id"):
+		mined_resource_id = StringName(String(_active_mining_node.call("get_resource_id")))
 	if _active_mining_node.has_method("complete_extraction"):
 		_active_mining_node.call("complete_extraction", self)
 
 	UIManager.show_toast("+%d %s" % [max(mined_quantity, 1), mined_resource_name], &"success")
+	AudioManager.play_sfx(&"mining_complete", global_position)
+	mining_completed.emit(mined_resource_id, max(mined_quantity, 1))
 	_stop_mining(false)
 
 
@@ -911,6 +934,8 @@ func _switch_mining_target(target_node: Node2D) -> void:
 		_mining_required_time = float(_active_mining_node.call("get_effective_extraction_time", mining_efficiency))
 
 	_update_mining_beam_visual(target_node)
+	mining_started.emit(target_node)
+	AudioManager.play_sfx(&"mining_beam", global_position)
 
 
 func _stop_mining(interrupted: bool) -> void:
@@ -1003,6 +1028,7 @@ func _update_camera(delta: float) -> void:
 
 	_trauma = maxf(_trauma - trauma_decay_rate * delta, 0.0)
 	var shake_strength: float = _trauma * _trauma
+	shake_strength *= SaveManager.get_screen_shake_intensity()
 	var shake_offset: Vector2 = Vector2(
 		randf_range(-1.0, 1.0),
 		randf_range(-1.0, 1.0)
@@ -1016,6 +1042,44 @@ func _update_camera(delta: float) -> void:
 
 	var target_zoom: Vector2 = Vector2.ONE * target_zoom_amount
 	ship_camera.zoom = ship_camera.zoom.lerp(target_zoom, clampf(zoom_lerp_speed * delta, 0.0, 1.0))
+
+
+func _update_engine_audio() -> void:
+	var thrusting: bool = false
+	var speed_ratio: float = 0.0
+	var boost_active: bool = controls_enabled and is_boost_active()
+	if not controls_enabled:
+		AudioManager.set_engine_state(false, 0.0, false)
+		_update_engine_vfx(false, 0.0, false)
+		return
+	thrusting = Input.is_action_pressed("thrust") or Input.is_action_pressed("thrust_alt")
+	var max_speed_value: float = maxf(_get_current_max_speed(), 1.0)
+	speed_ratio = clampf(velocity.length() / max_speed_value, 0.0, 1.0)
+	AudioManager.set_engine_state(thrusting, speed_ratio, boost_active)
+	_update_engine_vfx(thrusting, speed_ratio, boost_active)
+
+
+func _update_engine_vfx(thrusting: bool, speed_ratio: float, boost_active: bool) -> void:
+	if engine_glow != null:
+		var base_alpha: float = 0.38
+		var active_alpha: float = 0.72 if thrusting else 0.5
+		if boost_active:
+			active_alpha = 0.92
+		engine_glow.color.a = move_toward(engine_glow.color.a, active_alpha if (thrusting or boost_active) else base_alpha, get_physics_process_delta_time() * 4.0)
+
+	if engine_trail != null:
+		var trail_active: bool = thrusting or boost_active
+		engine_trail.emitting = trail_active
+		engine_trail.initial_velocity_min = lerpf(38.0, 90.0, speed_ratio)
+		engine_trail.initial_velocity_max = lerpf(72.0, 170.0, speed_ratio)
+		engine_trail.scale_amount_min = 0.35 if not boost_active else 0.62
+		engine_trail.scale_amount_max = 1.0 if not boost_active else 1.42
+		engine_trail.color = Color(0.35, 0.72, 1.0, 0.7) if not boost_active else Color(0.62, 0.9, 1.0, 0.85)
+
+	if boost_speed_lines != null:
+		boost_speed_lines.emitting = boost_active
+		boost_speed_lines.initial_velocity_min = 360.0
+		boost_speed_lines.initial_velocity_max = 540.0
 
 
 func _update_interaction_prompt() -> void:
@@ -1274,9 +1338,11 @@ func _on_player_damage_applied(shield_damage: float, hull_damage: float) -> void
 		_combat_state_remaining = combat_state_duration
 	if shield_damage > 0.0:
 		_shield_hit_flash_remaining = 0.16
+		AudioManager.play_sfx(&"shield_hit", global_position)
 	if hull_damage > 0.0:
 		_hull_hit_flash_remaining = 0.12
 		add_trauma(clampf(hull_damage / 38.0, 0.1, 0.38))
+		AudioManager.play_sfx(&"hull_hit", global_position)
 	_check_for_death()
 
 

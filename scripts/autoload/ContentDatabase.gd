@@ -19,6 +19,7 @@ const STORY_MISSIONS_PATH: String = "res://data/missions/story_missions.tres"
 const MARKET_PROFILE_PATH: String = "res://data/economy/market_profiles.tres"
 const REFINING_RECIPES_PATH: String = "res://data/economy/refining_recipes.tres"
 const CRAFTING_RECIPES_PATH: String = "res://data/economy/crafting_recipes.tres"
+const BALANCE_CONFIG_PATH: String = "res://data/balance/balance_config.tres"
 
 const SECTOR_DATA_PATHS := [
 	"res://data/sectors/sector_anchor_station.tres",
@@ -48,6 +49,7 @@ var _story_missions: Array[Dictionary] = []
 var _market_profile: Dictionary = {}
 var _refining_recipes: Array[Dictionary] = []
 var _crafting_recipes: Array[Dictionary] = []
+var _balance_config: Dictionary = {}
 var _is_loaded: bool = false
 
 
@@ -75,6 +77,8 @@ func load_content(force_reload: bool = false) -> void:
 	_market_profile.clear()
 	_refining_recipes.clear()
 	_crafting_recipes.clear()
+	_balance_config.clear()
+	_load_balance_config()
 	_load_resource_catalog()
 	_load_item_catalog()
 	_load_weapon_catalog()
@@ -285,6 +289,51 @@ func get_refining_recipes() -> Array[Dictionary]:
 func get_crafting_recipes() -> Array[Dictionary]:
 	ensure_loaded()
 	return _crafting_recipes.duplicate(true)
+
+
+func get_balance_config_data() -> Dictionary:
+	ensure_loaded()
+	return _balance_config.duplicate(true)
+
+
+func get_balance_value(section: StringName, key: StringName, default_value: Variant = null) -> Variant:
+	ensure_loaded()
+	var section_key: String = String(section)
+	if section_key.is_empty():
+		return default_value
+	var section_data: Dictionary = _balance_config.get(section_key, {})
+	var value_key: String = String(key)
+	if value_key.is_empty():
+		return default_value
+	if not section_data.has(value_key):
+		return default_value
+	return section_data[value_key]
+
+
+func _load_balance_config() -> void:
+	var balance_resource: Resource = load(BALANCE_CONFIG_PATH)
+	if balance_resource == null:
+		push_warning("ContentDatabase failed to load balance config at: %s" % BALANCE_CONFIG_PATH)
+		return
+	var config: Resource = balance_resource
+	var credit_earning_rates: Dictionary = config.get("credit_earning_rates") if config.get("credit_earning_rates") is Dictionary else {}
+	var upgrade_cost_multipliers: Dictionary = config.get("upgrade_cost_multipliers") if config.get("upgrade_cost_multipliers") is Dictionary else {}
+	var enemy_stat_scalars: Dictionary = config.get("enemy_stat_scalars") if config.get("enemy_stat_scalars") is Dictionary else {}
+	var mining: Dictionary = config.get("mining") if config.get("mining") is Dictionary else {}
+	var repair: Dictionary = config.get("repair") if config.get("repair") is Dictionary else {}
+	var death_penalty: Dictionary = config.get("death_penalty") if config.get("death_penalty") is Dictionary else {}
+	var boss_stats: Dictionary = config.get("boss_stats") if config.get("boss_stats") is Dictionary else {}
+	var contract_rewards: Dictionary = config.get("contract_rewards") if config.get("contract_rewards") is Dictionary else {}
+	_balance_config = {
+		"credit_earning_rates": credit_earning_rates.duplicate(true),
+		"upgrade_cost_multipliers": upgrade_cost_multipliers.duplicate(true),
+		"enemy_stat_scalars": enemy_stat_scalars.duplicate(true),
+		"mining": mining.duplicate(true),
+		"repair": repair.duplicate(true),
+		"death_penalty": death_penalty.duplicate(true),
+		"boss_stats": boss_stats.duplicate(true),
+		"contract_rewards": contract_rewards.duplicate(true),
+	}
 
 
 func _load_resource_catalog() -> void:

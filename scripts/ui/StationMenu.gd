@@ -2,6 +2,8 @@ extends CanvasLayer
 
 signal undock_requested
 signal galaxy_map_requested
+signal save_requested
+signal cargo_sold(total_quantity: int, total_credits: int)
 
 enum StationTab {
 	MISSIONS,
@@ -24,6 +26,7 @@ enum StationTab {
 @onready var upgrades_tab_button: Button = %UpgradesTabButton
 @onready var repair_tab_button: Button = %RepairTabButton
 @onready var galaxy_map_tab_button: Button = %GalaxyMapTabButton
+@onready var save_tab_button: Button = %SaveTabButton
 @onready var undock_tab_button: Button = %UndockTabButton
 
 @onready var missions_page: Control = %MissionsPage
@@ -68,6 +71,8 @@ var _active_missions_vbox: VBoxContainer = null
 var _abandon_confirm_dialog: ConfirmationDialog = null
 var _pending_abandon_mission_id: StringName = &""
 var _pending_abandon_mission_title: String = ""
+var _market_tutorial_highlight: bool = false
+var _market_highlight_time: float = 0.0
 
 
 func _ready() -> void:
@@ -101,6 +106,7 @@ func _ready() -> void:
 	upgrades_tab_button.pressed.connect(func() -> void: _switch_tab(StationTab.UPGRADES))
 	repair_tab_button.pressed.connect(func() -> void: _switch_tab(StationTab.REPAIR))
 	galaxy_map_tab_button.pressed.connect(func() -> void: _switch_tab(StationTab.GALAXY_MAP))
+	save_tab_button.pressed.connect(_on_save_button_pressed)
 	undock_tab_button.pressed.connect(_on_undock_button_pressed)
 
 	sell_all_button.pressed.connect(_on_sell_all_pressed)
@@ -125,12 +131,34 @@ func _ready() -> void:
 	_build_upgrades_page()
 	_build_missions_page()
 	_switch_tab(StationTab.MARKET, true)
+	for static_button in [
+		missions_tab_button,
+		market_tab_button,
+		refinery_tab_button,
+		workshop_tab_button,
+		upgrades_tab_button,
+		repair_tab_button,
+		galaxy_map_tab_button,
+		save_tab_button,
+		undock_tab_button,
+		sell_all_button,
+		quick_sell_button,
+		full_repair_button,
+		open_galaxy_map_button,
+	]:
+		_bind_ui_button_sound(static_button)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not visible:
 		return
 	credits_label.text = "Credits: %d" % GameStateManager.credits
+	if _market_tutorial_highlight and not market_tab_button.disabled:
+		_market_highlight_time += delta * 5.2
+		var pulse: float = 0.45 + absf(sin(_market_highlight_time)) * 0.55
+		market_tab_button.modulate = Color(1.0, 0.78 + pulse * 0.2, 0.24 + pulse * 0.24, 1.0)
+	elif not market_tab_button.disabled:
+		market_tab_button.modulate = Color(1.0, 1.0, 1.0, 1.0)
 
 
 func open_for_station(station_data: Dictionary) -> void:
@@ -164,6 +192,8 @@ func close_menu() -> void:
 	_active_services.clear()
 	_pending_abandon_mission_id = &""
 	_pending_abandon_mission_title = ""
+	_market_tutorial_highlight = false
+	_market_highlight_time = 0.0
 	if _abandon_confirm_dialog != null and is_instance_valid(_abandon_confirm_dialog):
 		_abandon_confirm_dialog.hide()
 	_clear_dynamic_rows()
@@ -951,7 +981,8 @@ func _refresh_repair_tab() -> void:
 	var max_hull: float = GameStateManager.get_max_hull()
 	var current_hull: float = GameStateManager.get_current_hull()
 	var missing_hull: float = maxf(max_hull - current_hull, 0.0)
-	var repair_cost: int = int(ceil(missing_hull * 2.0))
+	var repair_cost_per_hull: float = _get_repair_cost_per_hull_point()
+	var repair_cost: int = int(ceil(missing_hull * repair_cost_per_hull))
 
 	hull_status_label.text = "Hull: %.0f / %.0f" % [current_hull, max_hull]
 	repair_cost_label.text = "Cost: %d credits" % repair_cost
@@ -960,7 +991,7 @@ func _refresh_repair_tab() -> void:
 		repair_info_label.text = "Ship in good condition."
 		full_repair_button.disabled = true
 	else:
-		repair_info_label.text = "Full repairs cost 2 credits per missing hull point."
+		repair_info_label.text = "Full repairs cost %.1f credits per missing hull point." % repair_cost_per_hull
 		full_repair_button.disabled = GameStateManager.credits < repair_cost
 
 
@@ -1002,6 +1033,7 @@ func _create_sell_row(entry: Dictionary) -> void:
 		var earned: int = EconomyManager.sell_cargo(item_id, quantity, _active_station_id)
 		if earned > 0:
 			UIManager.show_toast("+%d credits" % earned, &"success")
+			cargo_sold.emit(quantity, earned)
 			_refresh_all_tab_content()
 	)
 	row.add_child(sell_button)
@@ -1462,15 +1494,18 @@ func _get_sellable_entries(exclude_mission_items: bool) -> Array[Dictionary]:
 
 func _on_sell_all_pressed() -> void:
 	var total_credits: int = 0
+	var total_quantity: int = 0
 	for entry in _get_sellable_entries(false):
 		var item_id: StringName = StringName(String(entry.get("item_id", "")))
 		var quantity: int = int(entry.get("quantity", 0))
 		if quantity <= 0:
 			continue
 		total_credits += EconomyManager.sell_cargo(item_id, quantity, _active_station_id)
+		total_quantity += quantity
 
 	if total_credits > 0:
 		UIManager.show_toast("+%d credits (Sell All)" % total_credits, &"success")
+		cargo_sold.emit(total_quantity, total_credits)
 	else:
 		UIManager.show_toast("No cargo sold.", &"info")
 	_refresh_all_tab_content()
@@ -1478,15 +1513,18 @@ func _on_sell_all_pressed() -> void:
 
 func _on_quick_sell_pressed() -> void:
 	var total_credits: int = 0
+	var total_quantity: int = 0
 	for entry in _get_sellable_entries(true):
 		var item_id: StringName = StringName(String(entry.get("item_id", "")))
 		var quantity: int = int(entry.get("quantity", 0))
 		if quantity <= 0:
 			continue
 		total_credits += EconomyManager.sell_cargo(item_id, quantity, _active_station_id)
+		total_quantity += quantity
 
 	if total_credits > 0:
 		UIManager.show_toast("Quick Sell complete: +%d credits" % total_credits, &"success")
+		cargo_sold.emit(total_quantity, total_credits)
 	else:
 		UIManager.show_toast("No eligible cargo for Quick Sell.", &"info")
 	_refresh_all_tab_content()
@@ -1503,7 +1541,8 @@ func _on_full_repair_pressed() -> void:
 		_refresh_repair_tab()
 		return
 
-	var repair_cost: int = int(ceil(missing_hull * 2.0))
+	var repair_cost_per_hull: float = _get_repair_cost_per_hull_point()
+	var repair_cost: int = int(ceil(missing_hull * repair_cost_per_hull))
 	if GameStateManager.credits < repair_cost:
 		UIManager.show_toast("Not enough credits for repairs.", &"warning")
 		_refresh_repair_tab()
@@ -1518,12 +1557,29 @@ func _on_full_repair_pressed() -> void:
 		station_cargo_panel.refresh_panel()
 
 
+func _get_repair_cost_per_hull_point() -> float:
+	var repair_config: Dictionary = ContentDatabase.get_balance_config_data().get("repair", {})
+	return maxf(float(repair_config.get("credits_per_hull_point", 2.0)), 0.1)
+
+
 func _on_open_galaxy_map_pressed() -> void:
 	galaxy_map_requested.emit()
 
 
+func _on_save_button_pressed() -> void:
+	save_requested.emit()
+
+
 func _on_undock_button_pressed() -> void:
 	undock_requested.emit()
+
+
+func set_market_tab_tutorial_highlight(enabled: bool) -> void:
+	_market_tutorial_highlight = enabled
+	if not enabled:
+		_market_highlight_time = 0.0
+		if not market_tab_button.disabled:
+			market_tab_button.modulate = Color(1.0, 1.0, 1.0, 1.0)
 
 
 func _on_cargo_changed() -> void:
@@ -1711,3 +1767,14 @@ func _clear_dynamic_rows() -> void:
 func _clear_container(container: Node) -> void:
 	for child in container.get_children():
 		child.queue_free()
+
+
+func _bind_ui_button_sound(button: Button) -> void:
+	if button == null:
+		return
+	button.pressed.connect(func() -> void:
+		AudioManager.play_sfx(&"ui_click", Vector2.ZERO)
+	)
+	button.mouse_entered.connect(func() -> void:
+		AudioManager.play_sfx(&"ui_hover", Vector2.ZERO)
+	)

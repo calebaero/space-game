@@ -23,10 +23,18 @@ extends CanvasLayer
 @onready var scanner_cooldown_indicator: Control = %ScannerCooldownIndicator
 @onready var in_flight_cargo_panel: CargoPanel = %InFlightCargoPanel
 @onready var mission_waypoint_label: Label = %MissionWaypointLabel
+@onready var mission_waypoint_arrow: Label = %MissionWaypointArrow
+@onready var critical_vignette: ColorRect = %CriticalVignette
 
 var _player_ship: CharacterBody2D = null
 var _hull_flash_timer: float = 0.0
 var _screen_flash_decay_rate: float = 6.5
+var _display_hull: float = 100.0
+var _display_shield: float = 50.0
+var _display_boost: float = 100.0
+var _shield_bar_flash_remaining: float = 0.0
+var _hull_bar_flash_remaining: float = 0.0
+var _target_panel_anim_time: float = 0.0
 
 const TOAST_COLORS: Dictionary = {
 	"warning": Color(1.0, 0.66, 0.22, 1.0),
@@ -44,9 +52,14 @@ func _ready() -> void:
 	toast_label.visible = false
 	velocity_indicator.visible = false
 	mission_waypoint_label.visible = false
+	mission_waypoint_arrow.visible = false
 	lead_indicator_label.visible = false
 	incoming_warning_label.visible = false
 	damage_flash.color.a = 0.0
+	critical_vignette.color.a = 0.0
+	_display_hull = GameStateManager.get_current_hull()
+	_display_shield = GameStateManager.get_current_shield()
+	_display_boost = 100.0
 	if in_flight_cargo_panel != null:
 		in_flight_cargo_panel.set_title("Cargo Hold")
 
@@ -84,19 +97,34 @@ func _unhandled_input(event: InputEvent) -> void:
 func _update_status_bars() -> void:
 	var max_hull: float = maxf(GameStateManager.get_max_hull(), 1.0)
 	var max_shield: float = maxf(GameStateManager.get_max_shield(), 1.0)
+	var delta: float = get_process_delta_time()
+	_display_hull = move_toward(_display_hull, clampf(GameStateManager.get_current_hull(), 0.0, max_hull), max_hull * 4.0 * delta)
+	_display_shield = move_toward(_display_shield, clampf(GameStateManager.get_current_shield(), 0.0, max_shield), max_shield * 4.0 * delta)
 
 	hull_bar.max_value = max_hull
-	hull_bar.value = clampf(GameStateManager.get_current_hull(), 0.0, max_hull)
+	hull_bar.value = clampf(_display_hull, 0.0, max_hull)
 	shield_bar.max_value = max_shield
-	shield_bar.value = clampf(GameStateManager.get_current_shield(), 0.0, max_shield)
+	shield_bar.value = clampf(_display_shield, 0.0, max_shield)
 
 	var hull_ratio: float = hull_bar.value / max_hull
+	var shield_ratio: float = shield_bar.value / max_shield
+	if _shield_bar_flash_remaining > 0.0:
+		_shield_bar_flash_remaining = maxf(_shield_bar_flash_remaining - delta, 0.0)
+	if _hull_bar_flash_remaining > 0.0:
+		_hull_bar_flash_remaining = maxf(_hull_bar_flash_remaining - delta, 0.0)
+	var shield_flash: float = clampf(_shield_bar_flash_remaining / 0.2, 0.0, 1.0)
+	var hull_flash: float = clampf(_hull_bar_flash_remaining / 0.2, 0.0, 1.0)
+	shield_bar.modulate = Color(0.42 + shield_flash * 0.3, 0.65 + shield_flash * 0.25, 1.0, 1.0)
 	if hull_ratio <= 0.25:
-		_hull_flash_timer += get_process_delta_time() * 6.0
+		_hull_flash_timer += delta * 6.0
 		var pulse: float = 0.45 + absf(sin(_hull_flash_timer)) * 0.55
-		hull_bar.modulate = Color(1.0, 0.24 + pulse * 0.28, 0.24 + pulse * 0.2, 1.0)
+		hull_bar.modulate = Color(1.0, 0.24 + pulse * 0.28 + hull_flash * 0.25, 0.24 + pulse * 0.2, 1.0)
+		critical_vignette.color.a = 0.09 + pulse * 0.16
 	else:
-		hull_bar.modulate = Color(1.0, 0.36, 0.36, 1.0)
+		hull_bar.modulate = Color(1.0, 0.36 + hull_flash * 0.22, 0.36, 1.0)
+		critical_vignette.color.a = move_toward(critical_vignette.color.a, 0.0, delta * 1.6)
+	if shield_ratio <= 0.0 and GameStateManager.get_current_hull() > 0.0:
+		critical_vignette.color.a = maxf(critical_vignette.color.a, 0.05)
 
 
 func _update_player_metrics() -> void:
@@ -115,7 +143,9 @@ func _update_player_metrics() -> void:
 		if _player_ship.has_method("get_velocity_vector"):
 			velocity_vector = _player_ship.call("get_velocity_vector")
 
-	boost_bar.value = clampf(boost_ratio * 100.0, 0.0, 100.0)
+	var target_boost_value: float = clampf(boost_ratio * 100.0, 0.0, 100.0)
+	_display_boost = move_toward(_display_boost, target_boost_value, 180.0 * get_process_delta_time())
+	boost_bar.value = _display_boost
 	if scanner_cooldown_indicator.has_method("set_cooldown_ratio"):
 		scanner_cooldown_indicator.call("set_cooldown_ratio", scanner_ratio)
 	speed_label.text = "Speed: %d px/s" % int(round(speed))
@@ -127,6 +157,11 @@ func _update_economy_readout() -> void:
 	var cargo_capacity: int = int(max(GameStateManager.get_cargo_capacity(), 1))
 	cargo_label.text = "Cargo: %d/%d" % [cargo_used, cargo_capacity]
 	credits_label.text = "Credits: %d" % GameStateManager.credits
+	if cargo_used >= cargo_capacity:
+		var pulse: float = 0.45 + absf(sin(Time.get_ticks_msec() * 0.008)) * 0.55
+		cargo_label.modulate = Color(1.0, 0.58 + pulse * 0.24, 0.18, 1.0)
+	else:
+		cargo_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
 
 
 func _update_mission_tracking_ui() -> void:
@@ -134,6 +169,7 @@ func _update_mission_tracking_ui() -> void:
 	if summary.is_empty():
 		mission_label.text = "No active mission"
 		mission_waypoint_label.visible = false
+		mission_waypoint_arrow.visible = false
 		return
 
 	var title: String = String(summary.get("title", "Mission"))
@@ -142,19 +178,23 @@ func _update_mission_tracking_ui() -> void:
 
 	if _player_ship == null or not is_instance_valid(_player_ship):
 		mission_waypoint_label.visible = false
+		mission_waypoint_arrow.visible = false
 		return
 
 	var context: Dictionary = MissionManager.get_tracked_objective_context(GameStateManager.current_sector_id, _player_ship.global_position)
 	if not bool(context.get("active", false)):
 		mission_waypoint_label.visible = false
+		mission_waypoint_arrow.visible = false
 		return
 	var world_position_variant: Variant = context.get("world_position", Vector2.ZERO)
 	if not (world_position_variant is Vector2):
 		mission_waypoint_label.visible = false
+		mission_waypoint_arrow.visible = false
 		return
 	var world_position: Vector2 = world_position_variant
 	if world_position == Vector2.ZERO:
 		mission_waypoint_label.visible = false
+		mission_waypoint_arrow.visible = false
 		return
 
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
@@ -168,6 +208,7 @@ func _update_mission_tracking_ui() -> void:
 		mission_waypoint_label.visible = true
 		mission_waypoint_label.text = "Objective %d px" % max(distance, 0)
 		mission_waypoint_label.position = target_screen + Vector2(-72.0, -38.0)
+		mission_waypoint_arrow.visible = false
 		return
 
 	var direction: Vector2 = (target_screen - center)
@@ -180,6 +221,9 @@ func _update_mission_tracking_ui() -> void:
 	mission_waypoint_label.visible = true
 	mission_waypoint_label.text = "Objective %d px  %d°" % [max(distance, 0), angle_deg]
 	mission_waypoint_label.position = edge_position - Vector2(96.0, 12.0)
+	mission_waypoint_arrow.visible = true
+	mission_waypoint_arrow.position = edge_position - Vector2(48.0, 84.0)
+	mission_waypoint_arrow.rotation = direction.angle() + PI * 0.5
 
 
 func _update_velocity_indicator(velocity_vector: Vector2) -> void:
@@ -217,6 +261,9 @@ func _update_target_panel() -> void:
 		return
 
 	target_info_panel.visible = true
+	_target_panel_anim_time += get_process_delta_time() * 4.0
+	var pulse: float = 0.88 + absf(sin(_target_panel_anim_time)) * 0.12
+	target_info_panel.modulate = Color(pulse, pulse, pulse, 1.0)
 	target_name_label.text = String(info.get("name", "Target"))
 	target_faction_label.text = "Faction: %s" % String(info.get("faction", "Unknown"))
 	target_distance_label.text = "Distance: %d" % int(round(float(info.get("distance", 0.0))))
@@ -294,8 +341,11 @@ func _on_toast_state_changed(message: String, category: StringName, alpha: float
 
 
 func _on_player_damage_applied(_shield_damage: float, hull_damage: float) -> void:
+	if _shield_damage > 0.0:
+		_shield_bar_flash_remaining = 0.2
 	if hull_damage <= 0.0:
 		return
+	_hull_bar_flash_remaining = 0.2
 	damage_flash.color = Color(1.0, 0.2, 0.2, minf(damage_flash.color.a + clampf(hull_damage / 40.0, 0.16, 0.4), 0.5))
 	_screen_flash_decay_rate = 6.5
 

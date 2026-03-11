@@ -14,6 +14,9 @@ signal player_docked(station_id: StringName)
 @onready var game_over_screen: CanvasLayer = %GameOverScreen
 @onready var wreck_recovery_panel: CanvasLayer = %WreckRecoveryPanel
 @onready var victory_overlay: CanvasLayer = %VictoryOverlay
+@onready var settings_menu: CanvasLayer = %SettingsMenu
+@onready var tutorial_overlay: CanvasLayer = %TutorialOverlay
+@onready var tutorial_start_prompt: CanvasLayer = %TutorialStartPrompt
 @onready var warp_transition_overlay: CanvasLayer = %WarpTransitionOverlay
 
 var _active_sector_scene: Node2D = null
@@ -24,7 +27,10 @@ var _is_map_open: bool = false
 var _is_warp_transitioning: bool = false
 var _is_game_over_open: bool = false
 var _is_wreck_panel_open: bool = false
+var _is_settings_open: bool = false
+var _is_tutorial_prompt_open: bool = false
 var _mission_position_report_accumulator: float = 0.0
+var _enemy_bind_accumulator: float = 0.0
 var _active_boss_ship: Node = null
 
 
@@ -34,6 +40,8 @@ func _ready() -> void:
 
 	if pause_menu.has_signal("resume_requested"):
 		pause_menu.connect("resume_requested", _on_pause_resume_requested)
+	if pause_menu.has_signal("save_requested"):
+		pause_menu.connect("save_requested", _on_pause_save_requested)
 	if pause_menu.has_signal("settings_requested"):
 		pause_menu.connect("settings_requested", _on_pause_settings_requested)
 	if pause_menu.has_signal("quit_to_menu_requested"):
@@ -41,6 +49,10 @@ func _ready() -> void:
 
 	if station_menu.has_signal("undock_requested"):
 		station_menu.connect("undock_requested", _on_station_menu_undock_requested)
+	if station_menu.has_signal("save_requested"):
+		station_menu.connect("save_requested", _on_station_menu_save_requested)
+	if station_menu.has_signal("cargo_sold"):
+		station_menu.connect("cargo_sold", _on_station_menu_cargo_sold)
 	if station_menu.has_signal("galaxy_map_requested"):
 		station_menu.connect("galaxy_map_requested", _on_station_menu_galaxy_map_requested)
 	if galaxy_map_screen.has_signal("close_requested"):
@@ -51,6 +63,20 @@ func _ready() -> void:
 		game_over_screen.connect("continue_requested", _on_game_over_continue_requested)
 	if wreck_recovery_panel.has_signal("close_requested"):
 		wreck_recovery_panel.connect("close_requested", _on_wreck_recovery_close_requested)
+	if settings_menu != null and is_instance_valid(settings_menu) and settings_menu.has_signal("close_requested"):
+		settings_menu.connect("close_requested", _on_settings_menu_close_requested)
+	if tutorial_overlay != null and is_instance_valid(tutorial_overlay):
+		if tutorial_overlay.has_signal("tutorial_step_changed") and not tutorial_overlay.tutorial_step_changed.is_connected(_on_tutorial_step_changed):
+			tutorial_overlay.tutorial_step_changed.connect(_on_tutorial_step_changed)
+		if tutorial_overlay.has_signal("tutorial_completed") and not tutorial_overlay.tutorial_completed.is_connected(_on_tutorial_end):
+			tutorial_overlay.tutorial_completed.connect(_on_tutorial_end)
+		if tutorial_overlay.has_signal("tutorial_skipped") and not tutorial_overlay.tutorial_skipped.is_connected(_on_tutorial_end):
+			tutorial_overlay.tutorial_skipped.connect(_on_tutorial_end)
+	if tutorial_start_prompt != null and is_instance_valid(tutorial_start_prompt):
+		if tutorial_start_prompt.has_signal("start_requested") and not tutorial_start_prompt.start_requested.is_connected(_on_tutorial_prompt_start_requested):
+			tutorial_start_prompt.start_requested.connect(_on_tutorial_prompt_start_requested)
+		if tutorial_start_prompt.has_signal("skip_requested") and not tutorial_start_prompt.skip_requested.is_connected(_on_tutorial_prompt_skip_requested):
+			tutorial_start_prompt.skip_requested.connect(_on_tutorial_prompt_skip_requested)
 
 	pause_menu.visible = false
 	station_menu.visible = false
@@ -61,6 +87,11 @@ func _ready() -> void:
 	game_over_screen.visible = false
 	wreck_recovery_panel.visible = false
 	victory_overlay.visible = false
+	settings_menu.visible = false
+	tutorial_overlay.visible = false
+	tutorial_start_prompt.visible = false
+	_is_settings_open = false
+	_is_tutorial_prompt_open = false
 	if warp_transition_overlay.has_method("clear_overlay"):
 		warp_transition_overlay.call("clear_overlay")
 	if not MissionManager.mission_state_changed.is_connected(_on_mission_state_changed):
@@ -72,22 +103,35 @@ func _ready() -> void:
 
 	get_tree().paused = false
 	set_process(true)
+	if SaveManager.consume_pending_loaded_state():
+		_start_loaded_game()
+		return
 	GameStateManager.emit_queued_new_game_request_if_any()
 
 
 func _process(delta: float) -> void:
-	if _active_player_ship == null or not is_instance_valid(_active_player_ship):
-		return
 	if get_tree().paused:
 		return
+	if _active_sector_scene != null and is_instance_valid(_active_sector_scene):
+		GameStateManager.add_playtime(delta)
+	if _active_player_ship == null or not is_instance_valid(_active_player_ship):
+		_enemy_bind_accumulator += delta
+		if _enemy_bind_accumulator >= 0.5:
+			_enemy_bind_accumulator = 0.0
+			_bind_enemy_destroy_signals()
+		return
 	_mission_position_report_accumulator += delta
+	_enemy_bind_accumulator += delta
 	if _mission_position_report_accumulator >= 0.12:
 		_mission_position_report_accumulator = 0.0
 		MissionManager.report_player_position(GameStateManager.current_sector_id, _active_player_ship.global_position)
+	if _enemy_bind_accumulator >= 0.5:
+		_enemy_bind_accumulator = 0.0
+		_bind_enemy_destroy_signals()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _is_warp_transitioning or _is_game_over_open or _is_wreck_panel_open:
+	if _is_warp_transitioning or _is_game_over_open or _is_wreck_panel_open or _is_settings_open or _is_tutorial_prompt_open:
 		return
 
 	if not get_tree().paused:
@@ -111,8 +155,32 @@ func _on_new_game_requested(starting_sector_id: StringName) -> void:
 		return
 
 	load_sector(starting_sector_data, &"")
+	AudioManager.set_exploration_context(int(starting_sector_data.get("threat_level", 1)), false)
 	var sector_name: String = String(starting_sector_data.get("name", "current"))
 	UIManager.show_toast("Welcome to %s sector" % sector_name, &"info")
+	_show_new_game_tutorial_prompt_if_needed()
+
+
+func _start_loaded_game() -> void:
+	var respawn_sector_id: StringName = _find_sector_id_for_station(GameStateManager.last_docked_station_id)
+	if respawn_sector_id == &"":
+		respawn_sector_id = GameStateManager.current_sector_id
+	if respawn_sector_id == &"":
+		respawn_sector_id = &"anchor_station"
+
+	var sector_data: Dictionary = GalaxyManager.get_sector_data(respawn_sector_id)
+	if sector_data.is_empty():
+		respawn_sector_id = &"anchor_station"
+		sector_data = GalaxyManager.get_sector_data(respawn_sector_id)
+	if sector_data.is_empty():
+		push_error("GameRoot could not load resume sector.")
+		return
+
+	load_sector(sector_data, &"")
+	GameStateManager.is_docked = false
+	GameStateManager.docked_station_id = &""
+	AudioManager.set_exploration_context(int(sector_data.get("threat_level", 1)), false)
+	UIManager.show_toast("Save loaded.", &"success")
 
 
 func load_sector(sector_data: Dictionary, arrival_from_sector_id: StringName) -> void:
@@ -152,6 +220,8 @@ func load_sector(sector_data: Dictionary, arrival_from_sector_id: StringName) ->
 		MissionManager.report_sector_entered(loaded_sector_id)
 	_refresh_mission_markers()
 	_spawn_pending_mission_encounters(loaded_sector_id, sector_data, true)
+	_bind_enemy_destroy_signals()
+	_refresh_tutorial_state()
 
 
 func _spawn_player_for_sector(sector_scene: Node2D, spawn_position: Vector2) -> void:
@@ -175,6 +245,8 @@ func _spawn_player_for_sector(sector_scene: Node2D, spawn_position: Vector2) -> 
 
 	if hud.has_method("set_player_ship"):
 		hud.call("set_player_ship", _active_player_ship)
+	if tutorial_overlay != null and is_instance_valid(tutorial_overlay) and tutorial_overlay.has_method("set_player_ship"):
+		tutorial_overlay.call("set_player_ship", _active_player_ship)
 
 
 func _pause_game() -> void:
@@ -215,12 +287,33 @@ func _on_pause_resume_requested() -> void:
 	_resume_game()
 
 
+func _on_pause_save_requested() -> void:
+	AudioManager.play_sfx(&"ui_click", Vector2.ZERO)
+	if not GameStateManager.is_docked:
+		UIManager.show_toast("Manual save is only available while docked.", &"warning")
+		return
+	if SaveManager.save_game():
+		UIManager.show_toast("Game saved.", &"success")
+
+
 func _on_pause_settings_requested() -> void:
-	UIManager.show_toast("Pause settings are not implemented yet.", &"info")
+	if settings_menu == null or not is_instance_valid(settings_menu):
+		return
+	_is_settings_open = true
+	if pause_menu.has_method("hide_menu"):
+		pause_menu.call("hide_menu")
+	else:
+		pause_menu.visible = false
+	if settings_menu.has_method("open_menu"):
+		settings_menu.call("open_menu", &"pause_menu")
+	else:
+		settings_menu.visible = true
 
 
 func _on_pause_quit_to_menu_requested() -> void:
+	AudioManager.play_sfx(&"ui_click", Vector2.ZERO)
 	get_tree().paused = false
+	_is_settings_open = false
 	if hud.has_method("set_player_ship"):
 		hud.call("set_player_ship", null)
 	get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
@@ -243,6 +336,8 @@ func _on_player_station_dock_requested(station_node: Node) -> void:
 	player_docked.emit(GameStateManager.docked_station_id)
 	SaveManager.autosave()
 	MissionManager.report_player_docked(GameStateManager.last_docked_station_id)
+	AudioManager.play_sfx(&"dock_confirm", Vector2.ZERO)
+	AudioManager.set_exploration_context(int(GalaxyManager.get_current_sector_data().get("threat_level", 1)), true)
 
 	if is_instance_valid(_active_player_ship):
 		_active_player_ship.set_controls_enabled(false)
@@ -267,11 +362,15 @@ func _on_station_menu_undock_requested() -> void:
 		station_menu.call("close_menu")
 	else:
 		station_menu.visible = false
+	if station_menu.has_method("set_market_tab_tutorial_highlight"):
+		station_menu.call("set_market_tab_tutorial_highlight", false)
 
 	GameStateManager.is_docked = false
 	GameStateManager.docked_station_id = &""
 	_is_station_menu_open = false
 	get_tree().paused = false
+	AudioManager.play_sfx(&"undock", Vector2.ZERO)
+	AudioManager.set_exploration_context(int(GalaxyManager.get_current_sector_data().get("threat_level", 1)), false)
 
 	if _active_player_ship != null and is_instance_valid(_active_player_ship):
 		if _docked_station != null and is_instance_valid(_docked_station) and _docked_station.has_method("get_undock_spawn_position"):
@@ -280,6 +379,81 @@ func _on_station_menu_undock_requested() -> void:
 		_active_player_ship.set_controls_enabled(true)
 
 	_docked_station = null
+
+
+func _on_station_menu_save_requested() -> void:
+	AudioManager.play_sfx(&"ui_click", Vector2.ZERO)
+	if SaveManager.save_game():
+		UIManager.show_toast("Game saved.", &"success")
+
+
+func _on_station_menu_cargo_sold(total_quantity: int, total_credits: int) -> void:
+	if tutorial_overlay == null or not is_instance_valid(tutorial_overlay):
+		return
+	if tutorial_overlay.has_method("report_cargo_sold"):
+		tutorial_overlay.call("report_cargo_sold", total_quantity, total_credits)
+
+
+func _on_tutorial_step_changed(step_index: int) -> void:
+	if station_menu == null or not is_instance_valid(station_menu):
+		return
+	if station_menu.has_method("set_market_tab_tutorial_highlight"):
+		station_menu.call("set_market_tab_tutorial_highlight", step_index == 8)
+
+
+func _on_tutorial_end() -> void:
+	if station_menu == null or not is_instance_valid(station_menu):
+		return
+	if station_menu.has_method("set_market_tab_tutorial_highlight"):
+		station_menu.call("set_market_tab_tutorial_highlight", false)
+
+
+func _show_new_game_tutorial_prompt_if_needed() -> void:
+	if GameStateManager.has_progression_flag(&"tutorial_completed"):
+		return
+	if tutorial_start_prompt == null or not is_instance_valid(tutorial_start_prompt):
+		return
+	_is_tutorial_prompt_open = true
+	if _active_player_ship != null and is_instance_valid(_active_player_ship):
+		_active_player_ship.set_controls_enabled(false)
+	get_tree().paused = true
+	if tutorial_start_prompt.has_method("open_prompt"):
+		tutorial_start_prompt.call("open_prompt")
+	else:
+		tutorial_start_prompt.visible = true
+
+
+func _on_tutorial_prompt_start_requested() -> void:
+	_is_tutorial_prompt_open = false
+	get_tree().paused = false
+	if _active_player_ship != null and is_instance_valid(_active_player_ship):
+		_active_player_ship.set_controls_enabled(true)
+	_ensure_first_steps_story_mission_active()
+	_refresh_tutorial_state()
+	if tutorial_overlay != null and is_instance_valid(tutorial_overlay) and tutorial_overlay.has_method("is_active"):
+		if not bool(tutorial_overlay.call("is_active")) and tutorial_overlay.has_method("start_tutorial"):
+			tutorial_overlay.call("start_tutorial", _active_player_ship, _resolve_first_steps_beacon_position(), &"station_anchor_prime")
+
+
+func _on_tutorial_prompt_skip_requested() -> void:
+	_is_tutorial_prompt_open = false
+	get_tree().paused = false
+	if _active_player_ship != null and is_instance_valid(_active_player_ship):
+		_active_player_ship.set_controls_enabled(true)
+	GameStateManager.set_progression_flag(&"tutorial_completed", true)
+	UIManager.show_toast("Tutorial skipped. Use Missions at Anchor Station to play it later.", &"info")
+	SaveManager.autosave()
+
+
+func _ensure_first_steps_story_mission_active() -> void:
+	if GameStateManager.has_progression_flag(&"story_first_steps_complete"):
+		return
+	for mission_variant in MissionManager.get_active_missions():
+		if mission_variant is not Dictionary:
+			continue
+		if String((mission_variant as Dictionary).get("template_id", "")) == "story_first_steps":
+			return
+	MissionManager.accept_story_mission(&"story_first_steps")
 
 
 func _on_station_menu_galaxy_map_requested() -> void:
@@ -320,6 +494,7 @@ func _perform_warp_transition(destination_sector_id: StringName) -> void:
 		_active_player_ship.set_controls_enabled(false)
 		_active_player_ship.velocity = Vector2.ZERO
 
+	AudioManager.play_sfx(&"warp_transition", Vector2.ZERO)
 	if warp_transition_overlay.has_method("play_warp_prelude"):
 		await warp_transition_overlay.call("play_warp_prelude")
 
@@ -335,6 +510,7 @@ func _perform_warp_transition(destination_sector_id: StringName) -> void:
 		_active_player_ship.set_controls_enabled(true)
 
 	var destination_name: String = String(destination_sector_data.get("name", "Unknown Sector"))
+	AudioManager.set_exploration_context(int(destination_sector_data.get("threat_level", 1)), false)
 	UIManager.show_toast("Warped to %s" % destination_name, &"success")
 
 
@@ -362,6 +538,8 @@ func _on_player_destroyed(death_position: Vector2) -> void:
 		return
 
 	_spawn_player_death_effect(death_position)
+	AudioManager.play_sfx(&"explosion_player", death_position)
+	AudioManager.play_music(&"death_sting")
 
 	var had_previous_wreck: bool = GameStateManager.has_active_wreck_beacon()
 	if had_previous_wreck:
@@ -381,7 +559,10 @@ func _on_player_destroyed(death_position: Vector2) -> void:
 		if wreck_node != null and is_instance_valid(wreck_node):
 			wreck_node.queue_free()
 
-	var repair_fee: int = max(50, int(round(float(GameStateManager.credits) * 0.1)))
+	var death_penalty_config: Dictionary = ContentDatabase.get_balance_config_data().get("death_penalty", {})
+	var repair_fee_ratio: float = clampf(float(death_penalty_config.get("credit_loss_ratio", 0.1)), 0.0, 1.0)
+	var minimum_repair_fee: int = max(int(death_penalty_config.get("minimum_repair_fee", 50)), 0)
+	var repair_fee: int = max(minimum_repair_fee, int(round(float(GameStateManager.credits) * repair_fee_ratio)))
 	GameStateManager.credits = max(GameStateManager.credits - repair_fee, 0)
 	GameStateManager.clear_cargo_hold()
 
@@ -425,6 +606,7 @@ func _on_game_over_continue_requested() -> void:
 		_active_player_ship.velocity = Vector2.ZERO
 		_active_player_ship.set_controls_enabled(true)
 
+	AudioManager.set_exploration_context(int(GalaxyManager.get_current_sector_data().get("threat_level", 1)), false)
 	UIManager.show_toast("Respawn complete. Return to your wreck beacon to recover cargo.", &"info")
 	_refresh_mission_markers()
 
@@ -456,6 +638,17 @@ func _on_wreck_recovery_close_requested() -> void:
 	get_tree().paused = false
 	if _active_player_ship != null and is_instance_valid(_active_player_ship) and not _is_station_menu_open:
 		_active_player_ship.set_controls_enabled(true)
+
+
+func _on_settings_menu_close_requested() -> void:
+	_is_settings_open = false
+	if _is_station_menu_open or _is_map_open or _is_game_over_open or _is_wreck_panel_open:
+		return
+	if get_tree().paused:
+		if pause_menu.has_method("show_menu"):
+			pause_menu.call("show_menu")
+		else:
+			pause_menu.visible = true
 
 
 func _build_wreck_cargo_snapshot_with_loss(death_position: Vector2) -> Array[Dictionary]:
@@ -542,6 +735,74 @@ func _bind_boss_triggers() -> void:
 			trigger_node.connect("boss_encounter_triggered", callback)
 
 
+func _bind_enemy_destroy_signals() -> void:
+	var callback: Callable = Callable(self, "_on_enemy_destroyed")
+	for enemy_variant in get_tree().get_nodes_in_group("enemy_ship"):
+		var enemy_node: Node = enemy_variant
+		if enemy_node == null or not is_instance_valid(enemy_node):
+			continue
+		if not enemy_node.has_signal("enemy_destroyed"):
+			continue
+		if bool(enemy_node.get_meta("kill_signal_bound", false)):
+			continue
+		if not enemy_node.is_connected("enemy_destroyed", callback):
+			enemy_node.connect("enemy_destroyed", callback)
+		enemy_node.set_meta("kill_signal_bound", true)
+
+
+func _on_enemy_destroyed(enemy_ship: EnemyShip, archetype_id: StringName) -> void:
+	if enemy_ship == null:
+		return
+	var world_position: Vector2 = enemy_ship.global_position
+	var reward_credits: int = _resolve_enemy_kill_credit_reward(archetype_id, bool(enemy_ship.get_meta("is_boss", false)))
+	if reward_credits <= 0:
+		return
+	GameStateManager.credits += reward_credits
+	_spawn_world_floating_text(world_position, "+%d cr" % reward_credits, Color(1.0, 0.92, 0.36, 0.96))
+	AudioManager.play_sfx(&"pickup_credits", world_position)
+
+
+func _resolve_enemy_kill_credit_reward(archetype_id: StringName, is_boss: bool) -> int:
+	if is_boss:
+		var boss_data: Dictionary = ContentDatabase.get_boss_archetype_definition(archetype_id)
+		if boss_data.is_empty():
+			return 180
+		var explicit_reward: int = int(boss_data.get("kill_credit_reward", 0))
+		if explicit_reward > 0:
+			return explicit_reward
+		return max(int(round(float(boss_data.get("hull", 300.0)) * 0.35)), 180)
+
+	var archetype_data: Dictionary = ContentDatabase.get_enemy_archetype_definition(archetype_id)
+	if archetype_data.is_empty():
+		return 0
+	var explicit_credit_reward: int = int(archetype_data.get("kill_credit_reward", 0))
+	if explicit_credit_reward > 0:
+		return explicit_credit_reward
+	var hull_component: float = float(archetype_data.get("hull", 40.0)) * 0.22
+	var shield_component: float = float(archetype_data.get("shield", 0.0)) * 0.18
+	return max(int(round(hull_component + shield_component)), 8)
+
+
+func _spawn_world_floating_text(world_position: Vector2, text: String, color: Color) -> void:
+	if _active_sector_scene == null or not is_instance_valid(_active_sector_scene):
+		return
+	var label: Label = Label.new()
+	label.text = text
+	label.modulate = color
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.z_index = 140
+	label.top_level = true
+	label.global_position = world_position + Vector2(-40.0, -64.0)
+	_active_sector_scene.add_child(label)
+
+	var tween: Tween = create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(label, "global_position", label.global_position + Vector2(0.0, -52.0), 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, "modulate:a", 0.0, 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.finished.connect(label.queue_free)
+
+
 func _on_boss_encounter_triggered(boss_name: String, boss_max_health: float, total_phases: int) -> void:
 	if boss_health_bar.has_method("begin_encounter"):
 		boss_health_bar.call("begin_encounter", boss_name, boss_max_health, total_phases)
@@ -550,10 +811,61 @@ func _on_boss_encounter_triggered(boss_name: String, boss_max_health: float, tot
 func _on_mission_state_changed() -> void:
 	_refresh_mission_markers()
 	_spawn_pending_mission_encounters(GameStateManager.current_sector_id, GalaxyManager.get_current_sector_data(), false)
+	_refresh_tutorial_state()
 
 
 func _on_mission_markers_changed() -> void:
 	_refresh_mission_markers()
+
+
+func _refresh_tutorial_state() -> void:
+	if tutorial_overlay == null or not is_instance_valid(tutorial_overlay):
+		return
+	if _is_tutorial_prompt_open:
+		return
+	if GameStateManager.has_progression_flag(&"tutorial_completed"):
+		return
+	if GameStateManager.has_progression_flag(&"story_first_steps_complete"):
+		GameStateManager.set_progression_flag(&"tutorial_completed", true)
+		return
+	if tutorial_overlay.has_method("is_active") and bool(tutorial_overlay.call("is_active")):
+		return
+
+	var first_steps_mission: Dictionary = _find_active_first_steps_mission()
+	if first_steps_mission.is_empty():
+		return
+
+	if tutorial_overlay.has_method("start_tutorial"):
+		tutorial_overlay.call("start_tutorial", _active_player_ship, _resolve_first_steps_beacon_position(first_steps_mission), &"station_anchor_prime")
+
+
+func _find_active_first_steps_mission() -> Dictionary:
+	for mission_variant in MissionManager.get_active_missions():
+		if mission_variant is not Dictionary:
+			continue
+		var mission_data: Dictionary = mission_variant
+		if String(mission_data.get("template_id", "")) == "story_first_steps":
+			return mission_data
+	return {}
+
+
+func _resolve_first_steps_beacon_position(mission_data: Dictionary = {}) -> Vector2:
+	var source_mission: Dictionary = mission_data
+	if source_mission.is_empty():
+		source_mission = _find_active_first_steps_mission()
+	var beacon_position: Vector2 = Vector2(1480.0, -280.0)
+	for objective_variant in source_mission.get("objectives", []):
+		if objective_variant is not Dictionary:
+			continue
+		var objective: Dictionary = objective_variant
+		if String(objective.get("type", "")) != "reach_point":
+			continue
+		var world_position: Variant = objective.get("world_position", Vector2.ZERO)
+		if world_position is Vector2:
+			return world_position
+		if world_position is Dictionary and world_position.has("x") and world_position.has("y"):
+			return Vector2(float(world_position.get("x", 0.0)), float(world_position.get("y", 0.0)))
+	return beacon_position
 
 
 func _refresh_mission_markers() -> void:
@@ -566,6 +878,7 @@ func _refresh_mission_markers() -> void:
 
 
 func _on_victory_sequence_requested(lines: PackedStringArray) -> void:
+	AudioManager.play_music(&"victory_fanfare")
 	if victory_overlay != null and is_instance_valid(victory_overlay) and victory_overlay.has_method("show_sequence"):
 		victory_overlay.call("show_sequence", lines)
 	else:
@@ -594,8 +907,10 @@ func _spawn_pending_mission_encounters(sector_id: StringName, sector_data: Dicti
 
 	var pending_boss: Dictionary = MissionManager.get_pending_boss_spawn_for_sector(sector_id)
 	if pending_boss.is_empty():
+		_bind_enemy_destroy_signals()
 		return
 	if not _active_sector_scene.has_method("spawn_runtime_boss"):
+		_bind_enemy_destroy_signals()
 		return
 
 	var spawn_position: Vector2 = _pick_boss_spawn_position(sector_data)
@@ -623,6 +938,7 @@ func _spawn_pending_mission_encounters(sector_id: StringName, sector_data: Dicti
 		boss_ship
 	)
 	UIManager.show_toast("%s detected" % String((pending_boss.get("boss_data", {}) as Dictionary).get("name", "Boss")), &"danger")
+	_bind_enemy_destroy_signals()
 
 
 func _pick_boss_spawn_position(sector_data: Dictionary) -> Vector2:
@@ -641,6 +957,8 @@ func _pick_boss_spawn_position(sector_data: Dictionary) -> Vector2:
 
 
 func _on_boss_intro_requested(boss_name: String, max_health: float, total_phases: int) -> void:
+	AudioManager.play_sfx(&"boss_appear", Vector2.ZERO)
+	AudioManager.play_boss_music()
 	if boss_health_bar.has_method("begin_encounter"):
 		boss_health_bar.call("begin_encounter", boss_name, max_health, total_phases)
 
@@ -656,6 +974,7 @@ func _on_boss_health_changed(current_health: float, max_health: float, phase_ind
 
 
 func _on_boss_defeated(_boss_id: StringName) -> void:
+	AudioManager.end_boss_music()
 	if boss_health_bar.has_method("end_encounter"):
 		boss_health_bar.call("end_encounter")
 	_active_boss_ship = null

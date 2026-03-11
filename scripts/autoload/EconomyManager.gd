@@ -7,16 +7,51 @@ const DEFAULT_STOCK_MAX: int = 24
 
 var _station_lookup: Dictionary = {}
 var _station_goods_stock: Dictionary = {}
+var _market_state_seed: int = 0
 
 
 func _ready() -> void:
 	ContentDatabase.ensure_loaded()
 	_rebuild_station_lookup()
+	if _market_state_seed == 0:
+		_market_state_seed = _generate_market_state_seed()
+	if not GameStateManager.new_game_requested.is_connected(_on_new_game_requested):
+		GameStateManager.new_game_requested.connect(_on_new_game_requested)
 
 
-func refresh_runtime_data() -> void:
+func refresh_runtime_data(reset_market_seed: bool = false) -> void:
 	_rebuild_station_lookup()
 	_station_goods_stock.clear()
+	if reset_market_seed or _market_state_seed == 0:
+		_market_state_seed = _generate_market_state_seed()
+
+
+func get_save_state() -> Dictionary:
+	return {
+		"station_goods_stock": _station_goods_stock.duplicate(true),
+		"market_state_seed": _market_state_seed,
+	}
+
+
+func apply_save_state(state: Dictionary) -> void:
+	_rebuild_station_lookup()
+	_market_state_seed = max(int(state.get("market_state_seed", 0)), 0)
+	if _market_state_seed == 0:
+		_market_state_seed = _generate_market_state_seed()
+	_station_goods_stock = {}
+	var saved_stock: Dictionary = state.get("station_goods_stock", {})
+	for station_key_variant in saved_stock.keys():
+		var station_key: String = String(station_key_variant)
+		if station_key.is_empty():
+			continue
+		var stock_dict: Dictionary = {}
+		var raw_stock: Dictionary = saved_stock.get(station_key_variant, {})
+		for commodity_key_variant in raw_stock.keys():
+			var commodity_key: String = String(commodity_key_variant)
+			if commodity_key.is_empty():
+				continue
+			stock_dict[commodity_key] = max(int(raw_stock.get(commodity_key_variant, 0)), 0)
+		_station_goods_stock[station_key] = stock_dict
 
 
 func get_sell_price(item_id: StringName, station_id: StringName) -> int:
@@ -258,7 +293,7 @@ func _get_station_variance(station_id: StringName, item_id: StringName) -> float
 		min_variance = max_variance
 		max_variance = temp
 
-	var hashed: int = abs(hash("%s|%s|price" % [station_key, String(item_id)]))
+	var hashed: int = abs(hash("%s|%s|%s|price" % [str(_market_state_seed), station_key, String(item_id)]))
 	var t: float = float(hashed % 10000) / 9999.0
 	return lerpf(min_variance, max_variance, t)
 
@@ -285,7 +320,7 @@ func _ensure_station_stock(station_id: StringName) -> Dictionary:
 		stock_max = stock_min
 
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = abs(hash("stock|%s" % station_key))
+	rng.seed = abs(hash("stock|%s|%s" % [str(_market_state_seed), station_key]))
 
 	var stock: Dictionary = {}
 	for commodity_variant in commodity_ids:
@@ -296,6 +331,14 @@ func _ensure_station_stock(station_id: StringName) -> Dictionary:
 
 	_station_goods_stock[station_key] = stock
 	return stock.duplicate(true)
+
+
+func _on_new_game_requested(_starting_sector_id: StringName) -> void:
+	refresh_runtime_data(true)
+
+
+func _generate_market_state_seed() -> int:
+	return abs(hash("market|%s|%s" % [str(Time.get_unix_time_from_system()), str(Time.get_ticks_usec())]))
 
 
 func _get_cargo_quantity(item_id: StringName) -> int:

@@ -133,7 +133,7 @@ func _apply_sector_data() -> void:
 
 	var galaxy_name: String = String(_galaxy_data.get("name", "Unknown Galaxy"))
 	var sector_name: String = String(_sector_data.get("name", "Unknown Sector"))
-	debug_label.text = "%s — %s\nPhase 07 Mission/Boss Shell" % [galaxy_name, sector_name]
+	debug_label.text = "%s — %s\nPhase 08 Stability Shell" % [galaxy_name, sector_name]
 	queue_redraw()
 
 

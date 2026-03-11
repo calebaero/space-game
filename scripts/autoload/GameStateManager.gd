@@ -78,6 +78,7 @@ var current_hull: float = 100.0
 var current_shield: float = 50.0
 var discovered_sectors: Dictionary = {}
 var progression_flags: Dictionary = {}
+var playtime_seconds: float = 0.0
 
 var _queued_new_game_sector_id: StringName = &""
 var _shield_recharge_delay_remaining: float = 0.0
@@ -135,6 +136,7 @@ func reset_runtime_state(starting_sector_id: StringName = &"anchor_station") -> 
 	discovered_sectors = {}
 	mark_sector_discovered(starting_sector_id)
 	progression_flags = {}
+	playtime_seconds = 0.0
 	wreck_beacon_state = {
 		"active": false,
 		"sector_id": "",
@@ -171,6 +173,127 @@ func get_discovered_sectors() -> Array[String]:
 	for key_variant in discovered_sectors.keys():
 		result.append(String(key_variant))
 	return result
+
+
+func add_playtime(delta: float) -> void:
+	if delta <= 0.0:
+		return
+	playtime_seconds += delta
+
+
+func get_playtime_seconds() -> float:
+	return maxf(playtime_seconds, 0.0)
+
+
+func get_save_state() -> Dictionary:
+	return {
+		"player_stats": player_stats.duplicate(true),
+		"credits": credits,
+		"cargo": cargo.duplicate(true),
+		"relic_inventory": relic_inventory.duplicate(true),
+		"ship_loadout": ship_loadout.duplicate(true),
+		"owned_modules": owned_modules.duplicate(),
+		"installed_upgrades": installed_upgrades.duplicate(true),
+		"current_sector_id": String(current_sector_id),
+		"last_docked_station_id": String(last_docked_station_id),
+		"is_docked": is_docked,
+		"docked_station_id": String(docked_station_id),
+		"wreck_beacon_state": _serialize_wreck_beacon_state(),
+		"current_hull": current_hull,
+		"current_shield": current_shield,
+		"discovered_sectors": discovered_sectors.duplicate(true),
+		"progression_flags": progression_flags.duplicate(true),
+		"playtime_seconds": playtime_seconds,
+		"shield_recharge_delay_remaining": _shield_recharge_delay_remaining,
+	}
+
+
+func apply_save_state(state: Dictionary) -> void:
+	ContentDatabase.ensure_loaded()
+
+	player_stats = DEFAULT_PLAYER_STATS.duplicate(true)
+	for key_variant in state.get("player_stats", {}).keys():
+		var key: String = String(key_variant)
+		if not player_stats.has(key):
+			continue
+		player_stats[key] = float((state.get("player_stats", {}) as Dictionary).get(key_variant, player_stats[key]))
+
+	credits = max(int(state.get("credits", STARTING_CREDITS)), 0)
+	cargo = _sanitize_cargo_entries(Array(state.get("cargo", [])))
+	relic_inventory = _sanitize_int_dictionary(Dictionary(state.get("relic_inventory", {})))
+
+	ship_loadout = {
+		"primary_weapon": "pulse_laser",
+		"secondary_weapon": "",
+		"utility_module": "",
+		"special_module": "",
+	}
+	var saved_loadout: Dictionary = state.get("ship_loadout", {})
+	for slot_variant in LOADOUT_SLOT_NAMES:
+		var slot_key: String = String(slot_variant)
+		var saved_module: String = String(saved_loadout.get(slot_key, ""))
+		ship_loadout[slot_key] = saved_module
+
+	owned_modules = _build_starting_owned_modules()
+	for module_variant in Array(state.get("owned_modules", [])):
+		var module_id: String = String(module_variant)
+		if module_id.is_empty():
+			continue
+		if not owned_modules.has(module_id):
+			owned_modules.append(module_id)
+
+	for slot_variant in LOADOUT_SLOT_NAMES:
+		var equipped_id: String = String(ship_loadout.get(String(slot_variant), ""))
+		if equipped_id.is_empty():
+			continue
+		if not owned_modules.has(equipped_id):
+			owned_modules.append(equipped_id)
+
+	installed_upgrades = {}
+	for path_id_variant in ContentDatabase.get_all_upgrade_paths().keys():
+		var path_id: String = String(path_id_variant)
+		if path_id.is_empty():
+			continue
+		installed_upgrades[path_id] = max(int((state.get("installed_upgrades", {}) as Dictionary).get(path_id, 0)), 0)
+
+	_sync_equipped_modules_cache()
+
+	current_sector_id = StringName(String(state.get("current_sector_id", "anchor_station")))
+	last_docked_station_id = StringName(String(state.get("last_docked_station_id", "station_anchor_prime")))
+	is_docked = bool(state.get("is_docked", false))
+	docked_station_id = StringName(String(state.get("docked_station_id", "")))
+
+	discovered_sectors = {}
+	for sector_variant in Array(state.get("discovered_sectors", {}).keys()):
+		var sector_key: String = String(sector_variant)
+		if sector_key.is_empty():
+			continue
+		discovered_sectors[sector_key] = bool((state.get("discovered_sectors", {}) as Dictionary).get(sector_variant, false))
+	if discovered_sectors.is_empty():
+		mark_sector_discovered(current_sector_id)
+
+	progression_flags = {}
+	for flag_variant in Dictionary(state.get("progression_flags", {})).keys():
+		var flag_key: String = String(flag_variant)
+		if flag_key.is_empty():
+			continue
+		progression_flags[flag_key] = bool((state.get("progression_flags", {}) as Dictionary).get(flag_variant, false))
+
+	playtime_seconds = maxf(float(state.get("playtime_seconds", 0.0)), 0.0)
+	_shield_recharge_delay_remaining = maxf(float(state.get("shield_recharge_delay_remaining", 0.0)), 0.0)
+
+	set_wreck_beacon_state(Dictionary(state.get("wreck_beacon_state", {})))
+
+	current_hull = clampf(float(state.get("current_hull", get_max_hull())), 0.0, get_max_hull())
+	current_shield = clampf(float(state.get("current_shield", get_max_shield())), 0.0, get_max_shield())
+	_player_destroyed_emitted = current_hull <= 0.0
+
+	cargo_changed.emit()
+	loadout_changed.emit()
+	upgrades_changed.emit()
+	stats_recalculated.emit()
+	hull_changed.emit(current_hull, get_max_hull())
+	shield_changed.emit(current_shield, get_max_shield())
 
 
 func get_effective_stat(stat_name: StringName) -> float:
@@ -343,6 +466,7 @@ func apply_damage(amount: float) -> Dictionary:
 	if depleted_this_hit:
 		shield_depleted.emit()
 		UIManager.show_toast("Shield Down!", &"warning")
+		AudioManager.play_sfx(&"shield_down", Vector2.ZERO)
 
 	player_damage_applied.emit(shield_damage, hull_damage)
 	_check_player_destroyed()
@@ -453,11 +577,13 @@ func add_cargo(resource_id: StringName, quantity: int) -> int:
 	var free_capacity: int = get_cargo_free()
 	if free_capacity <= 0:
 		UIManager.show_toast("Cargo Full!", &"warning")
+		AudioManager.play_sfx(&"cargo_full_warning", Vector2.ZERO)
 		return 0
 
 	var amount_to_add: int = min(quantity, free_capacity)
 	if amount_to_add <= 0:
 		UIManager.show_toast("Cargo Full!", &"warning")
+		AudioManager.play_sfx(&"cargo_full_warning", Vector2.ZERO)
 		return 0
 
 	var key: String = String(resource_id)
@@ -486,6 +612,7 @@ func add_cargo(resource_id: StringName, quantity: int) -> int:
 	if amount_to_add < quantity:
 		var lost: int = quantity - amount_to_add
 		UIManager.show_toast("Cargo Full! %d units lost" % lost, &"warning")
+		AudioManager.play_sfx(&"cargo_full_warning", Vector2.ZERO)
 
 	return amount_to_add
 
@@ -531,10 +658,11 @@ func clear_cargo_hold() -> void:
 
 
 func set_wreck_beacon_state(new_state: Dictionary) -> void:
+	var beacon_position: Vector2 = _deserialize_vector2(new_state.get("position", Vector2.ZERO))
 	wreck_beacon_state = {
 		"active": bool(new_state.get("active", false)),
 		"sector_id": String(new_state.get("sector_id", "")),
-		"position": new_state.get("position", Vector2.ZERO),
+		"position": beacon_position,
 		"cargo_snapshot": new_state.get("cargo_snapshot", []),
 	}
 	wreck_beacon_changed.emit()
@@ -969,6 +1097,66 @@ func _get_item_name(item_id: StringName) -> String:
 	if item_def.is_empty():
 		item_def = ContentDatabase.get_resource_definition(item_id)
 	return String(item_def.get("name", item_id))
+
+
+func _serialize_wreck_beacon_state() -> Dictionary:
+	return {
+		"active": bool(wreck_beacon_state.get("active", false)),
+		"sector_id": String(wreck_beacon_state.get("sector_id", "")),
+		"position": _serialize_vector2(wreck_beacon_state.get("position", Vector2.ZERO)),
+		"cargo_snapshot": Array(wreck_beacon_state.get("cargo_snapshot", [])).duplicate(true),
+	}
+
+
+func _serialize_vector2(value: Variant) -> Dictionary:
+	var vector_value: Vector2 = _deserialize_vector2(value)
+	return {"x": vector_value.x, "y": vector_value.y}
+
+
+func _deserialize_vector2(value: Variant) -> Vector2:
+	if value is Vector2:
+		return value
+	if value is Dictionary:
+		var vector_dict: Dictionary = value
+		if vector_dict.has("x") and vector_dict.has("y"):
+			return Vector2(float(vector_dict.get("x", 0.0)), float(vector_dict.get("y", 0.0)))
+		if vector_dict.has("X") and vector_dict.has("Y"):
+			return Vector2(float(vector_dict.get("X", 0.0)), float(vector_dict.get("Y", 0.0)))
+	if value is Array:
+		var vector_array: Array = value
+		if vector_array.size() >= 2:
+			return Vector2(float(vector_array[0]), float(vector_array[1]))
+	return Vector2.ZERO
+
+
+func _sanitize_cargo_entries(entries: Array) -> Array[Dictionary]:
+	var sanitized: Array[Dictionary] = []
+	for entry_variant in entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		var resource_id: String = String(entry.get("resource_id", ""))
+		var quantity: int = max(int(entry.get("quantity", 0)), 0)
+		if resource_id.is_empty() or quantity <= 0:
+			continue
+		sanitized.append({
+			"resource_id": resource_id,
+			"quantity": quantity,
+		})
+	return sanitized
+
+
+func _sanitize_int_dictionary(source: Dictionary) -> Dictionary:
+	var sanitized: Dictionary = {}
+	for key_variant in source.keys():
+		var key: String = String(key_variant)
+		if key.is_empty():
+			continue
+		var value: int = int(source.get(key_variant, 0))
+		if value <= 0:
+			continue
+		sanitized[key] = value
+	return sanitized
 
 
 func _find_cargo_entry_quantity(resource_id: StringName) -> int:

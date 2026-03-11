@@ -171,6 +171,8 @@ func _fire_projectile_from(spawn_position: Vector2, direction: Vector2, projecti
 	})
 	if _player_ship != null and is_instance_valid(_player_ship) and _player_ship.has_method("register_incoming_fire"):
 		_player_ship.call("register_incoming_fire", global_position)
+	AudioManager.play_sfx(&"weapon_fire", global_position)
+	AudioManager.report_combat_activity()
 
 
 func _update_boss_command(delta: float) -> void:
@@ -406,5 +408,6 @@ func _get_total_max_health() -> float:
 
 
 func _on_destroyed() -> void:
+	AudioManager.play_sfx(&"explosion_large", global_position)
 	boss_defeated.emit(boss_id)
 	super._on_destroyed()

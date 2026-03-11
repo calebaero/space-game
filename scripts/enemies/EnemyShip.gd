@@ -338,6 +338,8 @@ func _try_fire_projectile() -> void:
 	if _player_ship != null and is_instance_valid(_player_ship) and _player_ship.has_method("register_incoming_fire"):
 		_player_ship.call("register_incoming_fire", global_position)
 
+	AudioManager.play_sfx(&"weapon_fire", global_position)
+	AudioManager.report_combat_activity()
 	_fire_cooldown_remaining = float(_weapon_data.get("fire_rate", 0.4))
 
 
@@ -381,6 +383,7 @@ func _on_destroyed() -> void:
 		mission_tag
 	)
 	_spawn_explosion_effect()
+	AudioManager.play_sfx(&"explosion_small", global_position)
 	_spawn_loot_drops()
 	enemy_destroyed.emit(self, archetype_id)
 	queue_free()

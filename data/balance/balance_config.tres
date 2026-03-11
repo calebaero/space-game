@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="BalanceConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/BalanceConfig.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+credit_earning_rates = {
+"galaxy_1": {"contract": 1.0, "mining": 1.0, "combat": 1.0},
+"galaxy_2": {"contract": 1.45, "mining": 1.4, "combat": 1.35},
+"galaxy_3": {"contract": 2.1, "mining": 2.0, "combat": 1.9}
+}
+upgrade_cost_multipliers = {
+"mk1": 1.0,
+"mk2": 1.0,
+"mk3": 1.0
+}
+enemy_stat_scalars = {
+"galaxy_1": {"hull": 1.0, "shield": 1.0, "damage": 1.0},
+"galaxy_2": {"hull": 1.25, "shield": 1.2, "damage": 1.18},
+"galaxy_3": {"hull": 1.6, "shield": 1.5, "damage": 1.42}
+}
+mining = {
+"yield_multiplier": 1.0,
+"extraction_time_multiplier": 1.0,
+"node_respawn_on_sector_reentry": true
+}
+repair = {
+"credits_per_hull_point": 2.0
+}
+death_penalty = {
+"credit_loss_ratio": 0.1,
+"minimum_repair_fee": 50
+}
+boss_stats = {
+"pirate_gunship_captain": {"hull": 300.0, "shield": 100.0, "damage": 1.0},
+"rogue_drone_carrier": {"hull": 500.0, "shield": 200.0, "damage": 1.0},
+"ancient_guardian_flagship": {"hull": 800.0, "shield": 400.0, "damage": 1.0}
+}
+contract_rewards = {
+"galaxy_1": {"min": 100, "max": 300},
+"galaxy_2": {"min": 300, "max": 800},
+"galaxy_3": {"min": 800, "max": 2000}
+}
